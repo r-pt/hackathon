@@ -15,12 +15,13 @@ import {
 import type {
   CalculateRouteRequest,
   LocationItem,
+  RouteStep,
   SearchAlgorithm,
   UpdatePreferencesRequest,
 } from '@/api/types'
 import { CampusMap3D } from '@/components/CampusMap3D'
 import { FlagBadgeIcon, PersonBadgeIcon, RouteControls } from '@/components/RouteControls'
-import { RouteDirections } from '@/components/RouteDirections'
+import { RouteDirections, speakSpanish, stopSpeech } from '@/components/RouteDirections'
 import { IncidentModal } from '@/components/IncidentModal'
 import { AuthModal } from '@/components/AuthModal'
 
@@ -32,14 +33,20 @@ const CAMPUS_MAX_RANGE_M = 800
 const METERS_PER_DEG_LAT = 111_320
 const METERS_PER_DEG_LON = METERS_PER_DEG_LAT * Math.cos((UTFSM_LAT * Math.PI) / 180)
 
+const INITIAL_AVOID_STAIRS =
+  import.meta.env.VITE_DEFAULT_AVOID_STAIRS === 'true' ||
+  import.meta.env.VITE_ENABLE_FLOOR_STAIRS === 'false' ||
+  import.meta.env.VITE_ENABLE_ELEVATION_STAIRS === 'false'
+
 export function App() {
   const [originId, setOriginId] = useState<string | undefined>(undefined)
   const [destId, setDestId] = useState<string | undefined>(undefined)
-  const [reducedMobility, setReducedMobility] = useState<boolean>(true)
+  const [reducedMobility, setReducedMobility] = useState<boolean>(INITIAL_AVOID_STAIRS)
   const [preferCovered, setPreferCovered] = useState<boolean>(false)
   const [simulateRain, setSimulateRain] = useState<boolean>(false)
   const [algorithm, setAlgorithm] = useState<SearchAlgorithm>('astar')
   const [floorView, setFloorView] = useState<FloorView>('stacked')
+  const [autoVoice, setAutoVoice] = useState<boolean>(true)
 
   const [gpsRealActive, setGpsRealActive] = useState<boolean>(false)
   const [gpsStatusMessage, setGpsStatusMessage] = useState<string | null>(null)
@@ -166,9 +173,13 @@ export function App() {
   const routeQuery = useCalculateRoute(routeRequest)
 
   const walkPathRef = useRef<string[]>([])
+  const walkStepsRef = useRef<RouteStep[]>([])
+  const lastGpsSpokenNodeRef = useRef<string | null>(null)
+
   useEffect(() => {
     if (routeQuery.error || !routeRequest) {
       walkPathRef.current = []
+      walkStepsRef.current = []
       setAutoWalking(false)
       return
     }
@@ -179,6 +190,7 @@ export function App() {
       routeQuery.data.path_node_ids.length > 0
     ) {
       walkPathRef.current = routeQuery.data.path_node_ids
+      walkStepsRef.current = routeQuery.data.steps
     }
   }, [routeQuery.data, routeQuery.error, routeRequest, originId, destId])
 
@@ -239,12 +251,26 @@ export function App() {
 
         setGpsError(null)
         setOriginId(nearest.id)
+        const nodeChanged = lastGpsSpokenNodeRef.current !== nearest.id
+        lastGpsSpokenNodeRef.current = nearest.id
+
         if (destId && nearest.id === destId) {
           setReachedGoal(true)
           setGpsStatusMessage('¡Llegaste a tu destino!')
+          if (autoVoice && nodeChanged) {
+            speakSpanish('Has llegado a tu destino.')
+          }
         } else {
           setReachedGoal(false)
           setGpsStatusMessage(`GPS sincronizado en ${nearest.name}`)
+          if (autoVoice && nodeChanged) {
+            const nextStep = walkStepsRef.current.find((s) => s.from_node_id === nearest.id)
+            speakSpanish(
+              nextStep
+                ? `Ubicación actual: ${nearest.name}. ${nextStep.instruction}`
+                : `Ubicación actual: ${nearest.name}.`,
+            )
+          }
         }
       },
       (geoErr) => {
@@ -270,7 +296,7 @@ export function App() {
     return () => {
       navigator.geolocation.clearWatch(watchId)
     }
-  }, [gpsRealActive, mapQuery.data?.nodes, destId, floorView])
+  }, [gpsRealActive, mapQuery.data?.nodes, destId, floorView, autoVoice])
 
   const advanceOneStep = useCallback(() => {
     const path = walkPathRef.current
@@ -279,7 +305,9 @@ export function App() {
       return
     }
     const nextNodeId = path[1]
+    const currentStep = walkStepsRef.current[0]
     walkPathRef.current = path.slice(1)
+    walkStepsRef.current = walkStepsRef.current.slice(1)
     setOriginId(nextNodeId)
     setGpsError(null)
 
@@ -292,11 +320,21 @@ export function App() {
       setAutoWalking(false)
       setReachedGoal(true)
       setGpsStatusMessage('¡Llegaste a tu destino!')
+      if (autoVoice) {
+        speakSpanish('Has llegado a tu destino.')
+      }
     } else {
       setReachedGoal(false)
       setGpsStatusMessage(`En camino: ${nextNode?.name ?? nextNodeId}`)
+      if (autoVoice) {
+        const upcomingStep = walkStepsRef.current[0]
+        const announcement = upcomingStep?.instruction ?? currentStep?.instruction
+        if (announcement) {
+          speakSpanish(announcement)
+        }
+      }
     }
-  }, [destId, floorView, mapQuery.data?.nodes])
+  }, [destId, floorView, mapQuery.data?.nodes, autoVoice])
 
   useEffect(() => {
     if (!autoWalking) return
@@ -311,6 +349,7 @@ export function App() {
       setGpsRealActive(false)
       setGpsStatusMessage(null)
       setGpsError(null)
+      lastGpsSpokenNodeRef.current = null
     } else {
       setAutoWalking(false)
       setGpsError(null)
@@ -322,13 +361,18 @@ export function App() {
     if (autoWalking) {
       setAutoWalking(false)
       setGpsStatusMessage('Recorrido en pausa')
+      stopSpeech()
     } else if (routeQuery.data && routeQuery.data.path_node_ids.length >= 2) {
       walkPathRef.current = routeQuery.data.path_node_ids
+      walkStepsRef.current = routeQuery.data.steps
       setGpsRealActive(false)
       setGpsError(null)
       setReachedGoal(false)
       setAutoWalking(true)
       setGpsStatusMessage('Recorriendo ruta en vivo…')
+      if (autoVoice && routeQuery.data.steps[0]) {
+        speakSpanish(`Iniciando recorrido. ${routeQuery.data.steps[0].instruction}`)
+      }
     }
   }
 
@@ -395,7 +439,7 @@ export function App() {
   const isGpsLive = gpsRealActive || autoWalking
 
   return (
-    <div className="flex min-h-screen flex-col bg-[#F1F5F9] text-slate-900">
+    <div className="app-stage-bg flex min-h-screen flex-col bg-[#F1F5F9] text-slate-900">
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-full focus:border focus:border-sky-400 focus:bg-sky-100 focus:px-4 focus:py-2 focus:font-bold focus:text-sky-950 focus:outline-2 focus:outline-offset-2 focus:outline-[#0EA5E9]"
@@ -403,20 +447,20 @@ export function App() {
         Saltar al contenido principal
       </a>
 
-      <header className="sticky top-0 z-30 border-b border-slate-200/90 bg-white/90 px-4 py-2.5 backdrop-blur-md">
+      <header className="sticky top-0 z-30 border-b border-slate-200/90 bg-white/90 px-4 py-2.5 shadow-sm backdrop-blur-md">
         <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-2.5">
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="flex items-center gap-2">
               <h1 className="font-display text-lg font-bold tracking-tight text-slate-900">
                 CampusRoute
               </h1>
-              <span className="rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-800">
+              <span className="pill-3d rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-800">
                 {mapQuery.data?.campus_name ?? 'UTFSM Casa Central'}
               </span>
             </div>
 
             <div
-              className="flex flex-wrap items-center gap-2 rounded-full border border-slate-200 bg-slate-50/90 px-3 py-1 text-xs"
+              className="pill-3d flex flex-wrap items-center gap-2 rounded-full border border-slate-200 bg-slate-50/90 px-3 py-1 text-xs"
               aria-label="Ubicación actual y destino"
             >
               <span className="inline-flex items-center gap-1.5">
@@ -443,7 +487,7 @@ export function App() {
             </div>
 
             {isGpsLive && (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-300 bg-sky-100 px-2.5 py-0.5 text-xs font-bold text-sky-900">
+              <span className="pill-3d inline-flex items-center gap-1.5 rounded-full border border-sky-300 bg-sky-100 px-2.5 py-0.5 text-xs font-bold text-sky-900">
                 <span
                   aria-hidden="true"
                   className="gps-radar-dot relative inline-block size-2 rounded-full bg-[#0EA5E9]"
@@ -456,7 +500,7 @@ export function App() {
           <div className="flex flex-wrap items-center gap-2">
             {weatherQuery.data && (
               <div
-                className="flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100/90 px-3 py-1 text-xs font-medium text-slate-800"
+                className="pill-3d flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100/90 px-3 py-1 text-xs font-medium text-slate-800"
                 aria-label="Clima actual en el campus"
               >
                 <span>{weatherQuery.data.temperature_c.toFixed(1)} °C</span>
@@ -464,7 +508,7 @@ export function App() {
                   className={
                     weatherQuery.data.rain_alert || simulateRain
                       ? 'rounded-full bg-sky-200 px-2 py-0.5 font-bold text-sky-950'
-                      : 'text-emerald-700 font-semibold'
+                      : 'font-semibold text-emerald-700'
                   }
                 >
                   {weatherQuery.data.rain_alert || simulateRain ? 'Lluvia activa' : 'Despejado'}
@@ -480,7 +524,7 @@ export function App() {
               }}
               disabled={isRefreshingGraph}
               aria-busy={isRefreshingGraph}
-              className="min-h-9 rounded-full border border-slate-300 bg-white px-3.5 py-1 text-xs font-semibold text-slate-800 transition-all duration-150 hover:bg-slate-100 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn-3d min-h-9 rounded-full border border-slate-300 bg-white px-3.5 py-1 text-xs font-semibold text-slate-800 transition-all duration-150 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] disabled:cursor-not-allowed disabled:opacity-60"
             >
               <span aria-hidden="true">↻ </span>
               {isRefreshingGraph ? 'Actualizando…' : 'Actualizar'}
@@ -491,8 +535,8 @@ export function App() {
               onClick={() => setIncidentModalOpen(true)}
               className={
                 activeIncidentCount > 0
-                  ? 'min-h-9 rounded-full bg-[#DC2626] px-3.5 py-1 text-xs font-semibold text-white shadow-xs transition-all duration-150 hover:bg-red-700 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626]'
-                  : 'min-h-9 rounded-full border border-slate-300 bg-slate-100 px-3.5 py-1 text-xs font-semibold text-slate-800 transition-all duration-150 hover:bg-slate-200 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9]'
+                  ? 'btn-3d-primary min-h-9 rounded-full bg-[#DC2626] px-3.5 py-1 text-xs font-semibold text-white transition-all duration-150 hover:bg-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626]'
+                  : 'btn-3d min-h-9 rounded-full border border-slate-300 bg-slate-100 px-3.5 py-1 text-xs font-semibold text-slate-800 transition-all duration-150 hover:bg-slate-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9]'
               }
             >
               Incidencias ({activeIncidentCount})
@@ -505,7 +549,7 @@ export function App() {
                   setAuthToken(null)
                   queryClient.removeQueries({ queryKey: queryKeys.me() })
                 }}
-                className="min-h-9 rounded-full border border-slate-300 bg-white px-3.5 py-1 text-xs font-semibold text-slate-800 transition-all duration-150 hover:bg-slate-100 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9]"
+                className="btn-3d min-h-9 rounded-full border border-slate-300 bg-white px-3.5 py-1 text-xs font-semibold text-slate-800 transition-all duration-150 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9]"
               >
                 {meQuery.data?.full_name ? `Salir (${meQuery.data.full_name})` : 'Cerrar sesión'}
               </button>
@@ -513,7 +557,7 @@ export function App() {
               <button
                 type="button"
                 onClick={() => setAuthModalOpen(true)}
-                className="min-h-9 rounded-full bg-indigo-600 px-3.5 py-1 text-xs font-semibold text-white shadow-xs transition-all duration-150 hover:bg-indigo-700 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
+                className="btn-3d-primary min-h-9 rounded-full bg-indigo-600 px-3.5 py-1 text-xs font-semibold text-white transition-all duration-150 hover:bg-indigo-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600"
               >
                 Iniciar sesión
               </button>
@@ -528,7 +572,7 @@ export function App() {
       >
         <section
           aria-label="Mapa interactivo del campus"
-          className="flex min-h-[560px] flex-col rounded-3xl border border-slate-200/90 bg-white p-3 shadow-sm lg:min-h-[calc(100vh-6.5rem)]"
+          className="panel-3d flex min-h-[560px] flex-col rounded-3xl border border-slate-200/90 bg-white p-3 lg:min-h-[calc(100vh-6.5rem)]"
         >
           {mapQuery.isLoading && (
             <div
@@ -543,7 +587,7 @@ export function App() {
           {mapQuery.error && (
             <div
               role="alert"
-              className="my-auto rounded-2xl border border-red-200 bg-red-50/90 p-4 text-sm text-red-950"
+              className="card-3d my-auto rounded-2xl border border-red-200 bg-red-50/90 p-4 text-sm text-red-950"
             >
               <p className="font-display font-bold">Error al cargar el mapa del campus</p>
               <p>{mapQuery.error.message}</p>
@@ -568,7 +612,7 @@ export function App() {
           aria-label="Panel de control e indicaciones de ruta"
           className="flex flex-col gap-3.5"
         >
-          <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
+          <div className="panel-3d rounded-2xl border border-slate-200/90 bg-white p-4">
             <h2 className="font-display mb-2.5 text-sm font-bold text-slate-900">
               Configurar ruta
             </h2>
@@ -595,12 +639,20 @@ export function App() {
             />
           </div>
 
-          <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-xs">
+          <div className="panel-3d rounded-2xl border border-slate-200/90 bg-white p-4">
             <RouteDirections
               route={routeQuery.data}
               error={routeQuery.error}
               isLoading={routeQuery.isFetching}
               reachedGoal={reachedGoal}
+              autoVoice={autoVoice}
+              onToggleAutoVoice={() =>
+                setAutoVoice((prev) => {
+                  const next = !prev
+                  if (!next) stopSpeech()
+                  return next
+                })
+              }
             />
           </div>
         </aside>

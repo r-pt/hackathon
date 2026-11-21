@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     )
     campus_lat: float = -33.0344
     campus_lon: float = -71.5950
+    enable_floor_stairs: bool = True
+    enable_elevation_stairs: bool = True
+    stair_step_penalty_seconds: float = 0.7
+    elevation_slope_penalty_factor: float = 1.5
 
     @property
     def is_supabase_configured(self) -> bool:

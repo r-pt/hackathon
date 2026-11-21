@@ -1,7 +1,7 @@
 """Thread-safe in-memory campus store for local/demo mode without Supabase.
 
 ONLY used when `not get_settings().is_supabase_configured`.
-Seeds the UTFSM Casa Central 6-building campus preset (12 nodes, 13 edges,
+Seeds the UTFSM Casa Central 6-building campus preset (16 nodes, 20 edges,
 and initial incident `cc-inc-1`) from `graph_fixture.get_casa_central_graph()`,
 plus a single demo student profile, so Persona A endpoints and Persona B's
 routing engine share live mutable state.
@@ -35,6 +35,7 @@ from app.schemas.incidents import (
 from app.schemas.routes import GraphEdge, GraphIncident, GraphNode
 from app.services.graph_fixture import get_casa_central_graph
 
+SCHEMA_VERSION = 5
 CAMPUS_NAME = "UTFSM Casa Central — Campus Simulado"
 DEFAULT_VIEWBOX = ViewBox(width=1600, height=1050)
 DEFAULT_FLOORS = [1, 2]

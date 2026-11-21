@@ -144,7 +144,7 @@ const NODES: CampusNode[] = [
     x: 575,
     y: 700,
     z: 8,
-    is_destination: false,
+    is_destination: true,
     landmark: 'Pasillo superior Edificio A',
   },
   {
@@ -180,7 +180,7 @@ const NODES: CampusNode[] = [
     x: 1140,
     y: 580,
     z: 8,
-    is_destination: false,
+    is_destination: true,
     landmark: 'Conexión superior Edificio B hacia A y C',
   },
   {
@@ -242,6 +242,54 @@ const NODES: CampusNode[] = [
     z: 4,
     is_destination: true,
     landmark: 'Cruzando Av. Placeres por San Guillermo',
+  },
+  {
+    id: 'cc-aula-a201',
+    name: 'Aula A-201 — Ingeniería (Piso 2)',
+    building: 'Edificio A',
+    floor: 2,
+    node_type: 'room',
+    x: 675,
+    y: 720,
+    z: 8,
+    is_destination: true,
+    landmark: 'Sala de clases ala oriente Piso 2 Edificio A',
+  },
+  {
+    id: 'cc-sala-b202',
+    name: 'Sala de Estudio B-202 — Biblioteca (Piso 2)',
+    building: 'Edificio B',
+    floor: 2,
+    node_type: 'room',
+    x: 1040,
+    y: 580,
+    z: 8,
+    is_destination: true,
+    landmark: 'Sala silenciosa de lectura Piso 2 Biblioteca Central',
+  },
+  {
+    id: 'cc-salida-placeres',
+    name: 'Salida Norte — Av. Placeres',
+    building: 'Exterior',
+    floor: 1,
+    node_type: 'entrance',
+    x: 945,
+    y: 235,
+    z: 6,
+    is_destination: true,
+    landmark: 'Portón peatonal norte hacia Av. Placeres',
+  },
+  {
+    id: 'cc-salida-oriente',
+    name: 'Salida Oriente — Portón Av. España',
+    building: 'Exterior',
+    floor: 1,
+    node_type: 'entrance',
+    x: 1435,
+    y: 890,
+    z: 2,
+    is_destination: true,
+    landmark: 'Salida peatonal y vehicular sector jardines oriente',
   },
 ]
 
@@ -389,6 +437,83 @@ const EDGES: CampusEdge[] = [
     is_covered: false,
     bidirectional: true,
   },
+  {
+    id: 'cc-e14',
+    from_node_id: 'cc-ascensor-a-p2',
+    to_node_id: 'cc-aula-a201',
+    distance_m: 22,
+    base_weight: 1.0,
+    edge_type: 'corridor',
+    is_accessible: true,
+    is_covered: true,
+    bidirectional: true,
+  },
+  {
+    id: 'cc-e15',
+    from_node_id: 'cc-ascensor-b-p2',
+    to_node_id: 'cc-sala-b202',
+    distance_m: 22,
+    base_weight: 1.0,
+    edge_type: 'corridor',
+    is_accessible: true,
+    is_covered: true,
+    bidirectional: true,
+  },
+  {
+    id: 'cc-e16',
+    from_node_id: 'cc-edificio-a-p1',
+    to_node_id: 'cc-aula-a201',
+    distance_m: 14,
+    base_weight: 1.35,
+    edge_type: 'stairs',
+    is_accessible: false,
+    is_covered: true,
+    bidirectional: true,
+  },
+  {
+    id: 'cc-e17',
+    from_node_id: 'cc-edificio-b-p1',
+    to_node_id: 'cc-sala-b202',
+    distance_m: 14,
+    base_weight: 1.35,
+    edge_type: 'stairs',
+    is_accessible: false,
+    is_covered: true,
+    bidirectional: true,
+  },
+  {
+    id: 'cc-e18',
+    from_node_id: 'cc-edificio-c-p1',
+    to_node_id: 'cc-salida-placeres',
+    distance_m: 45,
+    base_weight: 1.15,
+    edge_type: 'ramp',
+    is_accessible: true,
+    is_covered: false,
+    bidirectional: true,
+  },
+  {
+    id: 'cc-e19',
+    from_node_id: 'cc-edificio-p',
+    to_node_id: 'cc-salida-placeres',
+    distance_m: 42,
+    base_weight: 1.4,
+    edge_type: 'stairs',
+    is_accessible: false,
+    is_covered: false,
+    bidirectional: true,
+  },
+  {
+    id: 'cc-e20',
+    from_node_id: 'cc-edificio-f',
+    to_node_id: 'cc-salida-oriente',
+    distance_m: 48,
+    base_weight: 1.15,
+    edge_type: 'ramp',
+    is_accessible: true,
+    is_covered: false,
+    bidirectional: true,
+  },
 ]
 
 let fallbackIncidents: Incident[] = [
@@ -522,6 +647,11 @@ function runShortestPath(params: {
       if (reducedMobility) {
         if (!edge.is_accessible || edge.edge_type === 'stairs') continue
         if (neighborNode.node_type === 'stairs' && neighborId !== destId) continue
+      } else if (edge.edge_type === 'stairs') {
+        const currentNode = NODE_BY_ID.get(currentId)
+        const isFloorTransition = currentNode ? currentNode.floor !== neighborNode.floor : false
+        if (isFloorTransition && import.meta.env.VITE_ENABLE_FLOOR_STAIRS === 'false') continue
+        if (!isFloorTransition && import.meta.env.VITE_ENABLE_ELEVATION_STAIRS === 'false') continue
       }
 
       let weight = edge.distance_m * edge.base_weight
@@ -565,10 +695,11 @@ function buildStepInstruction(
   }
   if (edge.edge_type === 'stairs') {
     const dir = toNode.floor > fromNode.floor || toNode.z > fromNode.z ? 'Sube' : 'Baja'
+    const kind = edge.is_covered ? 'cubiertas' : 'exteriores'
     if (fromNode.floor === toNode.floor) {
-      return `${dir} por las escaleras (${edge.distance_m} m) hasta ${toNode.name}.`
+      return `${dir} por las escaleras ${kind} (${edge.distance_m} m) hasta ${toNode.name}.`
     }
-    return `${dir} por las escaleras (${edge.distance_m} m) hacia el piso ${toNode.floor} (${toNode.name}).`
+    return `${dir} por las escaleras ${kind} (${edge.distance_m} m) hacia el piso ${toNode.floor} hasta ${toNode.name}.`
   }
   if (edge.edge_type === 'ramp') {
     const coverLabel = edge.is_covered ? 'cubierta' : 'exterior'

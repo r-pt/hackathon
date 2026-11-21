@@ -164,7 +164,7 @@ function CompassRose({
       onClick={onReset}
       title="Restablecer orientación al norte (0°)"
       aria-label={`Estrella polar y rosa de los vientos, orientación actual ${rotation} grados. Pulsa para restablecer a 0 grados.`}
-      className="absolute top-3 right-3 z-10 flex flex-col items-center gap-0.5 rounded-2xl border border-slate-200/90 bg-white/90 p-1.5 shadow-md backdrop-blur-md transition-transform duration-150 hover:scale-105 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626]"
+      className="panel-3d absolute top-3 right-3 z-10 flex flex-col items-center gap-0.5 rounded-2xl p-1.5 backdrop-blur-md transition-transform duration-150 hover:scale-105 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626]"
     >
       <svg width="72" height="72" viewBox="-44 -44 88 88" aria-hidden="true">
         {/* Outer dial ring */}
@@ -240,6 +240,7 @@ export function CampusMap3D({
   const [viewMode, setViewMode] = useState<'iso' | 'top'>('iso')
   const [rotation, setRotation] = useState<number>(0)
   const [showLabels, setShowLabels] = useState<boolean>(true)
+  const [showRoofs, setShowRoofs] = useState<boolean>(true)
   const [internalFloor, setInternalFloor] = useState<'stacked' | number>(floorView)
 
   useEffect(() => {
@@ -448,7 +449,7 @@ export function CampusMap3D({
           [b.x, b.y + b.height],
         ]) {
           samples.push(rawProject(bx, by, fl, -BLDG_EXTRUDE))
-          samples.push(rawProject(bx, by, fl, 12))
+          samples.push(rawProject(bx, by, fl, 26))
         }
       }
       if (fl === renderedFloors[0] || viewMode === 'top') {
@@ -771,6 +772,91 @@ export function CampusMap3D({
     const topPoly = topPts.map((p) => `${p.x},${p.y}`).join(' ')
     const roofCenterX = topPts.reduce((acc, p) => acc + p.x, 0) / 4
     const roofTopY = Math.min(...topPts.map((p) => p.y))
+    const isTopFloor = fl === Math.max(1, b.floors)
+    const drawRoof = showRoofs && isTopFloor
+
+    let roofOverlay: React.ReactNode = null
+    if (drawRoof) {
+      const eaves = 6
+      const roofPeak = 20
+      const eaveWorld: [number, number][] = [
+        [b.x - eaves, b.y - eaves],
+        [b.x + b.width + eaves, b.y - eaves],
+        [b.x + b.width + eaves, b.y + b.height + eaves],
+        [b.x - eaves, b.y + b.height + eaves],
+      ]
+      const eavePts = eaveWorld.map(([x, y]) => project(x, y, fl, 0))
+      const eaveShadowPts = eavePts.map((p) => `${p.x + 4},${p.y + 6}`).join(' ')
+
+      const wide = b.width >= b.height
+      const ridgeA = wide
+        ? project(b.x + b.width * 0.24, b.y + b.height / 2, fl, roofPeak)
+        : project(b.x + b.width / 2, b.y + b.height * 0.24, fl, roofPeak)
+      const ridgeB = wide
+        ? project(b.x + b.width * 0.76, b.y + b.height / 2, fl, roofPeak)
+        : project(b.x + b.width / 2, b.y + b.height * 0.76, fl, roofPeak)
+
+      const polyStr = (pts: { x: number; y: number }[]) => pts.map((p) => `${p.x},${p.y}`).join(' ')
+      const slopes = wide
+        ? [
+            { pts: polyStr([eavePts[0], eavePts[1], ridgeB, ridgeA]), opacity: 0.28, shade: '#0F172A', shadeOp: 0.08 },
+            { pts: polyStr([eavePts[1], eavePts[2], ridgeB]), opacity: 0.24, shade: '#0F172A', shadeOp: 0.05 },
+            { pts: polyStr([eavePts[2], eavePts[3], ridgeA, ridgeB]), opacity: 0.17, shade: '#FFFFFF', shadeOp: 0.14 },
+            { pts: polyStr([eavePts[3], eavePts[0], ridgeA]), opacity: 0.21, shade: '#FFFFFF', shadeOp: 0.06 },
+          ]
+        : [
+            { pts: polyStr([eavePts[0], eavePts[1], ridgeA]), opacity: 0.28, shade: '#0F172A', shadeOp: 0.08 },
+            { pts: polyStr([eavePts[1], eavePts[2], ridgeB, ridgeA]), opacity: 0.24, shade: '#0F172A', shadeOp: 0.05 },
+            { pts: polyStr([eavePts[2], eavePts[3], ridgeB]), opacity: 0.17, shade: '#FFFFFF', shadeOp: 0.14 },
+            { pts: polyStr([eavePts[3], eavePts[0], ridgeA, ridgeB]), opacity: 0.21, shade: '#FFFFFF', shadeOp: 0.06 },
+          ]
+
+      const skyInsetX = b.width * 0.26
+      const skyInsetY = b.height * 0.26
+      const skylightPts = (
+        [
+          [b.x + skyInsetX, b.y + skyInsetY],
+          [b.x + b.width - skyInsetX, b.y + skyInsetY],
+          [b.x + b.width - skyInsetX, b.y + b.height - skyInsetY],
+          [b.x + skyInsetX, b.y + b.height - skyInsetY],
+        ] as [number, number][]
+      ).map(([x, y]) => project(x, y, fl, roofPeak * 0.68))
+
+      roofOverlay = (
+        <g pointerEvents="none" aria-hidden="true">
+          {/* Soft eaves drop shadow onto upper facade */}
+          <polygon points={eaveShadowPts} fill="#0F172A" fillOpacity={0.11} />
+          {/* 4 shaded faceted hipped roof slopes (translucent so interiors remain visible) */}
+          {slopes.map((s, si) => (
+            <g key={`slope-${si}`}>
+              <polygon points={s.pts} fill={b.color} fillOpacity={s.opacity} stroke={b.color} strokeOpacity={0.55} strokeWidth={1.1} />
+              <polygon points={s.pts} fill={s.shade} fillOpacity={s.shadeOp} />
+            </g>
+          ))}
+          {/* Translucent skylight cutaway center */}
+          <polygon
+            points={polyStr(skylightPts)}
+            fill="#E0F2FE"
+            fillOpacity={0.18}
+            stroke="#FFFFFF"
+            strokeOpacity={0.8}
+            strokeWidth={1.2}
+            strokeDasharray="4 3"
+          />
+          {/* Roof ridge highlight */}
+          <line
+            x1={ridgeA.x}
+            y1={ridgeA.y}
+            x2={ridgeB.x}
+            y2={ridgeB.y}
+            stroke="#FFFFFF"
+            strokeOpacity={0.88}
+            strokeWidth={2.4}
+            strokeLinecap="round"
+          />
+        </g>
+      )
+    }
 
     return (
       <g key={`iso-bldg-${b.id}-fl-${fl}`}>
@@ -781,7 +867,8 @@ export function CampusMap3D({
         <polygon points={rightWall.pts} fill="#0F172A" fillOpacity={0.28} />
         <polygon points={topPoly} fill="#FFFFFF" fillOpacity={0.92} />
         <polygon points={topPoly} fill={b.color} fillOpacity={0.2} stroke={b.color} strokeWidth={2.2} />
-        {renderBuildingPlaque(roofCenterX, roofTopY - 12, b.name, b.color, true)}
+        {roofOverlay}
+        {renderBuildingPlaque(roofCenterX, roofTopY - (drawRoof ? 24 : 12), b.name, b.color, true)}
       </g>
     )
   }
@@ -799,12 +886,49 @@ export function CampusMap3D({
     const ry = Math.min(...pts.map((p) => p.y))
     const rw = Math.max(...pts.map((p) => p.x)) - rx
     const rh = Math.max(...pts.map((p) => p.y)) - ry
+    const drawRoof = showRoofs && fl === Math.max(1, b.floors)
+    const wide = rw >= rh
+    const rAx = wide ? rx + rw * 0.24 : rx + rw / 2
+    const rAy = wide ? ry + rh / 2 : ry + rh * 0.24
+    const rBx = wide ? rx + rw * 0.76 : rx + rw / 2
+    const rBy = wide ? ry + rh / 2 : ry + rh * 0.76
 
     return (
       <g key={`top-bldg-${b.id}-fl-${fl}`}>
         <rect x={rx + 4} y={ry + 6} width={rw} height={rh} rx={14} fill="#0F172A" fillOpacity={0.09} />
         <rect x={rx} y={ry} width={rw} height={rh} rx={14} fill="#FFFFFF" stroke={b.color} strokeWidth={2.2} />
         <rect x={rx} y={ry} width={rw} height={rh} rx={14} fill={b.color} fillOpacity={0.14} />
+        {drawRoof && (
+          <g pointerEvents="none" aria-hidden="true" opacity={0.45}>
+            <rect
+              x={rx - 4}
+              y={ry - 4}
+              width={rw + 8}
+              height={rh + 8}
+              rx={16}
+              fill="none"
+              stroke={b.color}
+              strokeWidth={1.3}
+              strokeDasharray="6 4"
+            />
+            <line x1={rx + 4} y1={ry + 4} x2={rAx} y2={rAy} stroke={b.color} strokeWidth={1.2} />
+            <line x1={rx + rw - 4} y1={ry + 4} x2={wide ? rBx : rAx} y2={wide ? rBy : rAy} stroke={b.color} strokeWidth={1.2} />
+            <line x1={rx + rw - 4} y1={ry + rh - 4} x2={rBx} y2={rBy} stroke={b.color} strokeWidth={1.2} />
+            <line x1={rx + 4} y1={ry + rh - 4} x2={wide ? rAx : rBx} y2={wide ? rAy : rBy} stroke={b.color} strokeWidth={1.2} />
+            <line x1={rAx} y1={rAy} x2={rBx} y2={rBy} stroke={b.color} strokeWidth={2} strokeLinecap="round" />
+            <rect
+              x={rx + rw * 0.26}
+              y={ry + rh * 0.26}
+              width={rw * 0.48}
+              height={rh * 0.48}
+              rx={6}
+              fill="#E0F2FE"
+              fillOpacity={0.35}
+              stroke="#FFFFFF"
+              strokeWidth={1.2}
+            />
+          </g>
+        )}
         {renderBuildingPlaque(rx + rw / 2, ry - 10, b.name, b.color, false)}
       </g>
     )
@@ -977,14 +1101,50 @@ export function CampusMap3D({
 
   const renderEdge = (e: CampusEdge) => {
     const s = EDGE_STYLE[e.edge_type]
-    const a = projectNode(nodeMap.get(e.from_node_id)!)
-    const b = projectNode(nodeMap.get(e.to_node_id)!)
+    const nodeA = nodeMap.get(e.from_node_id)!
+    const nodeB = nodeMap.get(e.to_node_id)!
+    const a = projectNode(nodeA)
+    const b = projectNode(nodeB)
     const hasIncident = edgeIncidents.has(e.id)
     const dimmed = routeEdgeSet.size > 0 && !routeEdgeSet.has(e.id)
     const covLabel = e.is_covered ? 'techado' : 'descubierto'
+    const baseWidth = 9
+
+    const dx = b.x - a.x
+    const dy = b.y - a.y
+    const len = Math.hypot(dx, dy) || 1
+    const nx = -dy / len
+    const ny = dx / len
+    const isStairs = e.edge_type === 'stairs'
+    const dz = Math.abs((nodeB.z ?? 0) - (nodeA.z ?? 0))
+    const stepCount = isStairs ? Math.max(4, Math.min(12, Math.floor(len / 12))) : 0
+    const mx = (a.x + b.x) / 2
+    const my = (a.y + b.y) / 2
 
     return (
-      <g key={e.id} opacity={dimmed ? 0.48 : 0.96}>
+      <g key={e.id} opacity={dimmed ? 0.5 : 0.98}>
+        {/* 1. 3D projected ground drop-shadow (+4, +6) */}
+        <line
+          x1={a.x + 4}
+          y1={a.y + 6}
+          x2={b.x + 4}
+          y2={b.y + 6}
+          stroke="rgba(15, 23, 42, 0.24)"
+          strokeWidth={baseWidth + 5}
+          strokeLinecap="round"
+        />
+        {/* 2. 3D raised walkway kerb / thickness bevel (+1.5, +2.5) */}
+        <line
+          x1={a.x + 1.5}
+          y1={a.y + 2.5}
+          x2={b.x + 1.5}
+          y2={b.y + 2.5}
+          stroke="#475569"
+          strokeWidth={baseWidth + 3}
+          strokeOpacity={0.55}
+          strokeLinecap="round"
+        />
+        {/* Covered sky-blue canopy halo */}
         {e.is_covered && (
           <g>
             <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#BAE6FD" strokeWidth={17} strokeOpacity={0.78} strokeLinecap="round" />
@@ -995,22 +1155,24 @@ export function CampusMap3D({
               y2={b.y}
               stroke="#38BDF8"
               strokeWidth={13}
-              strokeOpacity={0.4}
+              strokeOpacity={0.42}
               strokeDasharray="6 5"
               strokeLinecap="round"
             />
           </g>
         )}
+        {/* Main walkway surface bed */}
         <line
           x1={a.x}
           y1={a.y}
           x2={b.x}
           y2={b.y}
           stroke={hasIncident ? '#FECACA' : s.bed}
-          strokeWidth={9}
-          strokeOpacity={0.85}
+          strokeWidth={baseWidth}
+          strokeOpacity={0.94}
           strokeLinecap="round"
         />
+        {/* Center guide stroke */}
         <line
           x1={a.x}
           y1={a.y}
@@ -1021,11 +1183,311 @@ export function CampusMap3D({
           strokeDasharray={s.dash}
           strokeLinecap="round"
         >
-          <title>{`${s.label} (${e.distance_m} m, ${covLabel})${hasIncident ? ' — fuera de servicio' : ''}`}</title>
+          <title>{`${s.label} (${e.distance_m} m, ${covLabel}${dz > 0 ? `, desnivel ${dz} m` : ''})${
+            hasIncident ? ' — fuera de servicio' : ''
+          }`}</title>
         </line>
+
+        {/* 3D perpendicular stair treads + elevation Δz marker on outdoor/elevation stairs */}
+        {isStairs && (
+          <g pointerEvents="none" aria-hidden="true">
+            {Array.from({ length: stepCount }, (_, i) => {
+              const t = (i + 1) / (stepCount + 1)
+              const px = a.x + dx * t
+              const py = a.y + dy * t
+              return (
+                <g key={`tread-${i}`}>
+                  <line
+                    x1={px - nx * 5.5 + 1}
+                    y1={py - ny * 5.5 + 1.5}
+                    x2={px + nx * 5.5 + 1}
+                    y2={py + ny * 5.5 + 1.5}
+                    stroke="#9A3412"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                  />
+                  <line
+                    x1={px - nx * 5.5}
+                    y1={py - ny * 5.5}
+                    x2={px + nx * 5.5}
+                    y2={py + ny * 5.5}
+                    stroke="#FFF7ED"
+                    strokeWidth={1.6}
+                    strokeLinecap="round"
+                  />
+                </g>
+              )
+            })}
+            <g transform={`translate(${mx + nx * 16}, ${my + ny * 16})`}>
+              <rect
+                x={dz > 0 ? -27 : -14}
+                y={-8.5}
+                width={dz > 0 ? 54 : 28}
+                height={16}
+                rx={8}
+                fill="#EA580C"
+                stroke="#FFFFFF"
+                strokeWidth={1.3}
+              />
+              <text y={3} textAnchor="middle" fontSize="8.5" fontWeight="800" fill="#FFFFFF">
+                {dz > 0 ? `🪜 Δz ${dz}m` : '🪜'}
+              </text>
+            </g>
+          </g>
+        )}
       </g>
     )
   }
+
+  const renderFloorConnectors = (fl: number) =>
+    crossFloorEdges
+      .filter((e) => {
+        const a = nodeMap.get(e.from_node_id)!
+        const b = nodeMap.get(e.to_node_id)!
+        return Math.max(a.floor, b.floor) === fl
+      })
+      .map((e) => {
+        const a = nodeMap.get(e.from_node_id)!
+        const b = nodeMap.get(e.to_node_id)!
+        const lower = a.floor < b.floor ? a : b
+        const upper = a.floor < b.floor ? b : a
+        const pa = projectNode(lower)
+        const pb = projectNode(upper)
+        const s = EDGE_STYLE[e.edge_type]
+        const inc = edgeIncidents.get(e.id)
+        const hasIncident = Boolean(inc)
+        const onRoute = routeEdgeSet.has(e.id)
+        const isStairs = e.edge_type === 'stairs'
+        const lowFl = lower.floor
+        const highFl = upper.floor
+        const shaftTitle = `Conexión vertical (${s.label}): Piso ${lowFl} a Piso ${highFl}${
+          hasIncident ? ' — fuera de servicio' : ''
+        }`
+        const badgeText = isStairs ? `🪜 ESCALERA P${lowFl}↔P${highFl}` : `🛗 ASCENSOR ${lowFl}↔${highFl}`
+        const badgeW = isStairs ? 104 : 96
+        const badgeFill = hasIncident ? '#DC2626' : isStairs ? '#EA580C' : '#7C3AED'
+
+        if (viewMode === 'iso') {
+          const mx = (pa.x + pb.x) / 2
+          const my = (pa.y + pb.y) / 2
+
+          if (isStairs) {
+            // Two-flight 3D zigzag architectural staircase between Floor 1 and Floor 2
+            const landingX = mx + 26
+            const landingY = my
+            const stairStroke = hasIncident || onRoute ? '#DC2626' : '#EA580C'
+            const railStroke = hasIncident || onRoute ? '#FCA5A5' : '#FDBA74'
+            const flights: [{ x: number; y: number }, { x: number; y: number }][] = [
+              [pa, { x: landingX, y: landingY }],
+              [{ x: landingX, y: landingY }, pb],
+            ]
+
+            return (
+              <g key={`stairs-shaft-${e.id}`}>
+                <title>{shaftTitle}</title>
+                {/* 3D shadow behind flights */}
+                <polyline
+                  points={`${pa.x + 5},${pa.y + 5} ${landingX + 5},${landingY + 5} ${pb.x + 5},${pb.y + 5}`}
+                  fill="none"
+                  stroke="rgba(15, 23, 42, 0.22)"
+                  strokeWidth={18}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+                {/* Stair carriage / stringer deck */}
+                <polyline
+                  points={`${pa.x},${pa.y} ${landingX},${landingY} ${pb.x},${pb.y}`}
+                  fill="none"
+                  stroke={hasIncident ? '#FECACA' : '#FFEDD5'}
+                  strokeWidth={16}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+                {/* Left & right diagonal stair stringers / handrails */}
+                <polyline
+                  points={`${pa.x - 7},${pa.y} ${landingX - 7},${landingY} ${pb.x - 7},${pb.y}`}
+                  fill="none"
+                  stroke={stairStroke}
+                  strokeWidth={2.6}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+                <polyline
+                  points={`${pa.x + 7},${pa.y} ${landingX + 7},${landingY} ${pb.x + 7},${pb.y}`}
+                  fill="none"
+                  stroke={stairStroke}
+                  strokeWidth={2.6}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+                {/* Elevated handrail highlight */}
+                <polyline
+                  points={`${pa.x + 7},${pa.y - 6} ${landingX + 7},${landingY - 6} ${pb.x + 7},${pb.y - 6}`}
+                  fill="none"
+                  stroke={railStroke}
+                  strokeWidth={1.6}
+                  strokeLinejoin="round"
+                  strokeLinecap="round"
+                />
+                {/* Stepped 3D horizontal treads along both flights */}
+                {flights.map(([p0, p1], fi) =>
+                  Array.from({ length: 6 }, (_, ti) => {
+                    const t = (ti + 1) / 7
+                    const sx = p0.x + (p1.x - p0.x) * t
+                    const sy = p0.y + (p1.y - p0.y) * t
+                    return (
+                      <line
+                        key={`st-${fi}-${ti}`}
+                        x1={sx - 6.5}
+                        y1={sy}
+                        x2={sx + 6.5}
+                        y2={sy}
+                        stroke={stairStroke}
+                        strokeWidth={2.2}
+                        strokeLinecap="round"
+                      />
+                    )
+                  })
+                )}
+                {/* Mid-landing platform */}
+                <rect
+                  x={landingX - 10}
+                  y={landingY - 5}
+                  width={20}
+                  height={10}
+                  rx={3}
+                  fill="#FFF7ED"
+                  stroke={stairStroke}
+                  strokeWidth={1.6}
+                />
+                {/* Badge */}
+                <g transform={`translate(${landingX + 54}, ${landingY})`} pointerEvents="none" aria-hidden="true">
+                  <rect
+                    x={-badgeW / 2}
+                    y={-10}
+                    width={badgeW}
+                    height={19}
+                    rx={9.5}
+                    fill={badgeFill}
+                    stroke="#FFFFFF"
+                    strokeWidth={1.5}
+                    filter={shadowFilterUrl}
+                  />
+                  <text y={3} textAnchor="middle" fontSize="8.5" fontWeight="800" fill="#FFFFFF">
+                    {badgeText}
+                  </text>
+                </g>
+                {inc &&
+                  renderIncidentBadge(
+                    landingX,
+                    landingY,
+                    `inc-cross-${e.id}`,
+                    `Tramo vertical fuera de servicio: ${inc.description}`
+                  )}
+              </g>
+            )
+          }
+
+          // Vertical 3D elevator glass shaft with twin guide rails + badge
+          const elevStroke = hasIncident || onRoute ? '#DC2626' : s.stroke
+          return (
+            <g key={`shaft-${e.id}`}>
+              <title>{shaftTitle}</title>
+              {/* Translucent vertical elevator column */}
+              <line
+                x1={pa.x}
+                y1={pa.y}
+                x2={pb.x}
+                y2={pb.y}
+                stroke={hasIncident ? '#FECACA' : onRoute ? '#FCA5A5' : '#DDD6FE'}
+                strokeWidth={14}
+                strokeOpacity={0.55}
+                strokeLinecap="round"
+              />
+              {/* Twin vertical rails */}
+              <line x1={pa.x - 5} y1={pa.y} x2={pb.x - 5} y2={pb.y} stroke={elevStroke} strokeWidth={1.6} strokeOpacity={0.75} />
+              <line x1={pa.x + 5} y1={pa.y} x2={pb.x + 5} y2={pb.y} stroke={elevStroke} strokeWidth={1.6} strokeOpacity={0.75} />
+              {/* Center dashed lift cable */}
+              <line
+                x1={pa.x}
+                y1={pa.y}
+                x2={pb.x}
+                y2={pb.y}
+                stroke={elevStroke}
+                strokeWidth={hasIncident || onRoute ? 3.8 : 2.8}
+                strokeDasharray="6 4"
+                strokeLinecap="round"
+              />
+              {/* Badge */}
+              <g transform={`translate(${mx - 54}, ${my})`} pointerEvents="none" aria-hidden="true">
+                <rect
+                  x={-badgeW / 2}
+                  y={-10}
+                  width={badgeW}
+                  height={19}
+                  rx={9.5}
+                  fill={badgeFill}
+                  stroke="#FFFFFF"
+                  strokeWidth={1.5}
+                  filter={shadowFilterUrl}
+                />
+                <text y={3} textAnchor="middle" fontSize="8.5" fontWeight="800" fill="#FFFFFF">
+                  {badgeText}
+                </text>
+              </g>
+              {inc &&
+                renderIncidentBadge(
+                  mx,
+                  my,
+                  `inc-cross-${e.id}`,
+                  `Tramo vertical fuera de servicio: ${inc.description}`
+                )}
+            </g>
+          )
+        }
+
+        // Cenital curved bridge connector (stairs or elevator)
+        const midX = (pa.x + pb.x) / 2
+        const midY = Math.min(pa.y, pb.y) - (isStairs ? 46 : 74)
+        const bezMidX = 0.25 * pa.x + 0.5 * midX + 0.25 * pb.x
+        const bezMidY = 0.25 * pa.y + 0.5 * midY + 0.25 * pb.y
+        return (
+          <g key={`bridge-${e.id}`}>
+            <path
+              d={`M ${pa.x} ${pa.y} Q ${midX} ${midY} ${pb.x} ${pb.y}`}
+              fill="none"
+              stroke={hasIncident || onRoute ? '#DC2626' : s.stroke}
+              strokeWidth={hasIncident || onRoute ? 4 : isStairs ? 3.2 : 2.6}
+              strokeDasharray={isStairs ? '4 4' : '6 5'}
+              strokeOpacity={hasIncident || onRoute ? 0.92 : 0.72}
+            >
+              <title>{shaftTitle}</title>
+            </path>
+            <g transform={`translate(${bezMidX}, ${bezMidY})`} pointerEvents="none" aria-hidden="true">
+              <rect
+                x={-badgeW / 2}
+                y={-9}
+                width={badgeW}
+                height={18}
+                rx={9}
+                fill={badgeFill}
+                stroke="#FFFFFF"
+                strokeWidth={1.3}
+              />
+              <text y={3} textAnchor="middle" fontSize="8.5" fontWeight="800" fill="#FFFFFF">
+                {badgeText}
+              </text>
+            </g>
+            {inc &&
+              renderIncidentBadge(
+                bezMidX,
+                bezMidY - 14,
+                `inc-cross-${e.id}`,
+                `Tramo vertical fuera de servicio: ${inc.description}`
+              )}
+          </g>
+        )
+      })
 
   const renderNode = (n: CampusNode) => {
     const p = projectNode(n)
@@ -1034,13 +1496,15 @@ export function CampusMap3D({
     const isDest = n.id === destId
     const isEndpoint = isOrigin || isDest
     const onRoute = routeNodeSet.has(n.id) || isEndpoint
+    const isEntrance = n.node_type === 'entrance'
+    const isSalida = n.id.includes('salida') || n.name.toLowerCase().includes('salida')
     const linkedFloors = verticalLinks.get(n.id) ?? []
     const vertBadge =
       linkedFloors.length > 0
         ? linkedFloors.map((fl) => `${fl > n.floor ? '↑' : '↓'} P${fl}`).join(' ')
         : ''
 
-    const ariaLabel = `${n.name}, ${NODE_LABEL[n.node_type]}, piso ${n.floor}${
+    const ariaLabel = `${n.name}, ${isSalida ? 'Salida del campus' : NODE_LABEL[n.node_type]}, piso ${n.floor}${
       linkedFloors.length > 0
         ? `, conecta con ${linkedFloors.map((fl) => `piso ${fl}`).join(', ')}`
         : ''
@@ -1049,7 +1513,7 @@ export function CampusMap3D({
     }${isDest ? ', destino meta B' : ''}`
 
     const labelW = Math.max(58, n.name.length * 5.7 + 16)
-    const labelClass = isEndpoint || onRoute ? 'cm3d-node-label cm3d-label-pinned' : 'cm3d-node-label'
+    const labelClass = isEndpoint || onRoute || isSalida ? 'cm3d-node-label cm3d-label-pinned' : 'cm3d-node-label'
 
     return (
       <g key={n.id}>
@@ -1067,6 +1531,26 @@ export function CampusMap3D({
             />
             <text y={2} textAnchor="middle" fontSize="8.5" fontWeight="700" fill="#FFFFFF">
               {vertBadge}
+            </text>
+          </g>
+        )}
+
+        {/* Distinctive 3D SALIDA / ACCESO portal badge for campus exits & entrances */}
+        {isEntrance && !vertBadge && (
+          <g transform={`translate(${p.x},${p.y - (isEndpoint ? 48 : 23)})`} aria-hidden="true" pointerEvents="none">
+            <rect
+              x={-30}
+              y={-9}
+              width={60}
+              height={16}
+              rx={8}
+              fill={isSalida ? '#059669' : '#D97706'}
+              stroke="#FFFFFF"
+              strokeWidth={1.4}
+              filter={shadowFilterUrl}
+            />
+            <text y={2.5} textAnchor="middle" fontSize="8.5" fontWeight="800" fill="#FFFFFF">
+              {isSalida ? '🚪 SALIDA' : '🚪 ACCESO'}
             </text>
           </g>
         )}
@@ -1094,6 +1578,17 @@ export function CampusMap3D({
           }}
         >
           <title>{ariaLabel}</title>
+          {isEntrance && (
+            <circle
+              r={14.5}
+              fill={isSalida ? '#10B981' : '#F59E0B'}
+              fillOpacity={0.22}
+              stroke={isSalida ? '#059669' : '#D97706'}
+              strokeWidth={2}
+              strokeDasharray="4 2"
+              aria-hidden="true"
+            />
+          )}
           <circle className="cm3d-ring" r={16} />
           <NodeGlyph type={n.node_type} onRoute={onRoute} />
           <g transform="translate(0, 19)" className={labelClass} aria-hidden="true">
@@ -1104,14 +1599,24 @@ export function CampusMap3D({
               height={15}
               rx={7.5}
               fill="rgba(255,255,255,0.94)"
-              stroke={isOrigin ? '#0EA5E9' : isDest ? '#15803D' : onRoute ? '#DC2626' : '#CBD5E1'}
-              strokeWidth={isEndpoint || onRoute ? 1.4 : 1}
+              stroke={
+                isOrigin
+                  ? '#0EA5E9'
+                  : isDest
+                    ? '#15803D'
+                    : onRoute
+                      ? '#DC2626'
+                      : isSalida
+                        ? '#059669'
+                        : '#CBD5E1'
+              }
+              strokeWidth={isEndpoint || onRoute || isSalida ? 1.4 : 1}
             />
             <text
               y={2}
               textAnchor="middle"
               fontSize="9.5"
-              fontWeight={isEndpoint || onRoute ? '700' : '600'}
+              fontWeight={isEndpoint || onRoute || isSalida ? '700' : '600'}
               fill="#0F172A"
             >
               {n.name}
@@ -1132,19 +1637,19 @@ export function CampusMap3D({
 
   return (
     <figure className="m-0 flex flex-1 flex-col gap-3">
-      {/* Soft Floating Glass Toolbar */}
+      {/* Tactile 3D Floating Glass Toolbar */}
       <div
         role="toolbar"
         aria-label="Controles de visualización del mapa 3D"
-        className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-slate-200/90 bg-white/95 px-3 py-2 shadow-xs backdrop-blur-md"
+        className="panel-3d flex flex-wrap items-center justify-between gap-2 rounded-2xl px-3 py-2 backdrop-blur-md"
       >
-        <div className="flex flex-wrap items-center gap-1" role="group" aria-label="Selector de piso en el mapa">
+        <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label="Selector de piso en el mapa">
           <button
             type="button"
             aria-pressed={stacked}
             onClick={() => handleFloorSelect('stacked')}
-            className={`rounded-full px-3 py-1 text-xs font-semibold transition-all duration-150 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] ${
-              stacked ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            className={`rounded-full px-3 py-1 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] ${
+              stacked ? 'btn-3d-primary bg-slate-900 text-white' : 'btn-3d bg-white text-slate-700 hover:bg-slate-50'
             }`}
           >
             Ambos pisos
@@ -1157,8 +1662,8 @@ export function CampusMap3D({
                 type="button"
                 aria-pressed={active}
                 onClick={() => handleFloorSelect(fl)}
-                className={`rounded-full px-3 py-1 text-xs font-semibold transition-all duration-150 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] ${
-                  active ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                className={`rounded-full px-3 py-1 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] ${
+                  active ? 'btn-3d-primary bg-slate-900 text-white' : 'btn-3d bg-white text-slate-700 hover:bg-slate-50'
                 }`}
               >
                 Piso {fl}
@@ -1168,7 +1673,7 @@ export function CampusMap3D({
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
-          <div className="inline-flex rounded-full bg-slate-100 p-0.5" role="group" aria-label="Perspectiva de cámara">
+          <div className="pill-3d inline-flex rounded-full bg-slate-100 p-0.5" role="group" aria-label="Perspectiva de cámara">
             <button
               type="button"
               aria-pressed={viewMode === 'iso'}
@@ -1196,7 +1701,7 @@ export function CampusMap3D({
               type="button"
               onClick={() => setRotation((r) => (r - 90 + 360) % 360)}
               aria-label="Rotar mapa 90 grados a la izquierda"
-              className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-800 transition-all duration-150 hover:bg-slate-200 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-[#DC2626]"
+              className="btn-3d rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-[#DC2626]"
             >
               ↺ -90°
             </button>
@@ -1204,7 +1709,7 @@ export function CampusMap3D({
               type="button"
               onClick={() => setRotation((r) => (r + 90) % 360)}
               aria-label="Rotar mapa 90 grados a la derecha"
-              className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-800 transition-all duration-150 hover:bg-slate-200 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-[#DC2626]"
+              className="btn-3d rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-[#DC2626]"
             >
               ↻ +90°
             </button>
@@ -1212,12 +1717,25 @@ export function CampusMap3D({
 
           <button
             type="button"
+            aria-pressed={showRoofs}
+            onClick={() => setShowRoofs((r) => !r)}
+            className={`rounded-full px-3 py-1 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] ${
+              showRoofs
+                ? 'btn-3d-primary bg-indigo-600 text-white hover:bg-indigo-700'
+                : 'btn-3d bg-white text-slate-700 hover:bg-slate-50'
+            }`}
+          >
+            🏠 Techos 3D
+          </button>
+
+          <button
+            type="button"
             aria-pressed={showLabels}
             onClick={() => setShowLabels((s) => !s)}
-            className={`rounded-full px-3 py-1 text-xs font-semibold transition-all duration-150 active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] ${
+            className={`btn-3d rounded-full px-3 py-1 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] ${
               showLabels
                 ? 'bg-slate-200/90 text-slate-900 hover:bg-slate-300/80'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                : 'bg-white text-slate-600 hover:bg-slate-50'
             }`}
           >
             {showLabels ? 'Ocultar nombres' : 'Mostrar nombres'}
@@ -1226,7 +1744,7 @@ export function CampusMap3D({
       </div>
 
       {/* Isometric 3D / Cenital Interactive SVG Stage */}
-      <div className="relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-b from-slate-100 to-slate-200/60 p-2">
+      <div className="panel-3d relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-b from-slate-100 via-slate-100/90 to-slate-200/75 p-2">
         <CompassRose angleDeg={northAngleDeg} rotation={rotation} onReset={() => setRotation(0)} />
         <svg
           viewBox={`0 0 ${scene.width} ${scene.height}`}
@@ -1258,90 +1776,7 @@ export function CampusMap3D({
                 {renderFloorBaseSlab(fl, idx)}
                 {fl === renderedFloors[0] && renderCardinalEdgeLabels(fl)}
 
-                {idx > 0 &&
-                  crossFloorEdges
-                    .filter((e) => {
-                      const a = nodeMap.get(e.from_node_id)!
-                      const b = nodeMap.get(e.to_node_id)!
-                      return Math.max(a.floor, b.floor) === fl
-                    })
-                    .map((e) => {
-                      const a = nodeMap.get(e.from_node_id)!
-                      const b = nodeMap.get(e.to_node_id)!
-                      const pa = projectNode(a)
-                      const pb = projectNode(b)
-                      const s = EDGE_STYLE[e.edge_type]
-                      const inc = edgeIncidents.get(e.id)
-                      const hasIncident = Boolean(inc)
-                      const onRoute = routeEdgeSet.has(e.id)
-                      const shaftTitle = `Conexión vertical (${s.label}): Piso ${a.floor} a Piso ${b.floor}${
-                        hasIncident ? ' — fuera de servicio' : ''
-                      }`
-
-                      if (viewMode === 'iso') {
-                        const mx = (pa.x + pb.x) / 2
-                        const my = (pa.y + pb.y) / 2
-                        return (
-                          <g key={`shaft-${e.id}`}>
-                            <line
-                              x1={pa.x}
-                              y1={pa.y}
-                              x2={pb.x}
-                              y2={pb.y}
-                              stroke={hasIncident ? '#FECACA' : onRoute ? '#FCA5A5' : '#DDD6FE'}
-                              strokeWidth={hasIncident || onRoute ? 10 : 8}
-                              strokeOpacity={0.65}
-                              strokeLinecap="round"
-                            />
-                            <line
-                              x1={pa.x}
-                              y1={pa.y}
-                              x2={pb.x}
-                              y2={pb.y}
-                              stroke={hasIncident || onRoute ? '#DC2626' : s.stroke}
-                              strokeWidth={hasIncident || onRoute ? 4 : 3.2}
-                              strokeDasharray="6 4"
-                              strokeLinecap="round"
-                            >
-                              <title>{shaftTitle}</title>
-                            </line>
-                            {inc &&
-                              renderIncidentBadge(
-                                mx,
-                                my,
-                                `inc-cross-${e.id}`,
-                                `Tramo vertical fuera de servicio: ${inc.description}`
-                              )}
-                          </g>
-                        )
-                      }
-
-                      const midX = (pa.x + pb.x) / 2
-                      const midY = Math.min(pa.y, pb.y) - 62
-                      const bezMidX = 0.25 * pa.x + 0.5 * midX + 0.25 * pb.x
-                      const bezMidY = 0.25 * pa.y + 0.5 * midY + 0.25 * pb.y
-                      return (
-                        <g key={`bridge-${e.id}`}>
-                          <path
-                            d={`M ${pa.x} ${pa.y} Q ${midX} ${midY} ${pb.x} ${pb.y}`}
-                            fill="none"
-                            stroke={hasIncident || onRoute ? '#DC2626' : s.stroke}
-                            strokeWidth={hasIncident || onRoute ? 3.5 : 2.5}
-                            strokeDasharray="6 5"
-                            strokeOpacity={hasIncident || onRoute ? 0.92 : 0.55}
-                          >
-                            <title>{shaftTitle}</title>
-                          </path>
-                          {inc &&
-                            renderIncidentBadge(
-                              bezMidX,
-                              bezMidY,
-                              `inc-cross-${e.id}`,
-                              `Tramo vertical fuera de servicio: ${inc.description}`
-                            )}
-                        </g>
-                      )
-                    })}
+                {idx > 0 && renderFloorConnectors(fl)}
 
                 {flBuildings.map((b) =>
                   viewMode === 'iso' ? renderIsoBuilding(b, fl) : renderTopBuilding(b, fl)
@@ -1467,10 +1902,10 @@ export function CampusMap3D({
         </svg>
       </div>
 
-      {/* Compact Vibrant Legend */}
+      {/* Compact Tactile 3D Legend */}
       <figcaption
         aria-label="Leyenda del mapa"
-        className="flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-2xl border border-slate-200/90 bg-white/95 px-3.5 py-2 text-xs text-slate-700"
+        className="panel-3d flex flex-wrap items-center gap-x-3.5 gap-y-1.5 rounded-2xl px-3.5 py-2 text-xs text-slate-700"
       >
         <span className="inline-flex items-center gap-1.5 font-medium text-slate-900">
           <svg width="20" height="20" viewBox="-12 -12 24 24" aria-hidden="true">
@@ -1512,6 +1947,17 @@ export function CampusMap3D({
         </span>
 
         <span className="inline-flex items-center gap-1.5">
+          <svg width="24" height="12" aria-hidden="true">
+            <line x1="2" y1="6" x2="22" y2="6" stroke="#EA580C" strokeWidth={3.2} strokeDasharray="4 3" strokeLinecap="round" />
+          </svg>
+          Escaleras
+        </span>
+
+        <span className="pill-3d inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-[10px] font-bold text-white">
+          🚪 Salidas
+        </span>
+
+        <span className="inline-flex items-center gap-1.5">
           <svg width="26" height="12" aria-hidden="true">
             <line x1="2" y1="6" x2="24" y2="6" stroke="#EF4444" strokeWidth={8} strokeOpacity={0.28} strokeLinecap="round" />
             <line x1="2" y1="6" x2="24" y2="6" stroke="#DC2626" strokeWidth={3.5} strokeDasharray="6 4" strokeLinecap="round" />
@@ -1532,7 +1978,7 @@ export function CampusMap3D({
         {(routePolylines.length > 0 || routeVerticals.length > 0) && (
           <button
             type="button"
-            className="ml-auto rounded-full border border-slate-300 bg-slate-50 px-3 py-0.5 font-semibold text-slate-800 transition-colors hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626]"
+            className="btn-3d ml-auto rounded-full bg-white px-3 py-0.5 font-semibold text-slate-800 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626]"
             onClick={() => setAnimating((a) => !a)}
           >
             {animating ? 'Pausar animación' : 'Reanudar animación'}

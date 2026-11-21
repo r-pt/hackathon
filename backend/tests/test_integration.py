@@ -62,15 +62,15 @@ def test_campus_map_full_and_floor_filtering() -> None:
         "bld-m",
         "bld-p",
     }
-    assert len(full_body["nodes"]) == 12
-    assert len(full_body["edges"]) == 13
+    assert len(full_body["nodes"]) == 16
+    assert len(full_body["edges"]) == 20
     assert [inc["id"] for inc in full_body["active_incidents"]] == ["cc-inc-1"]
 
     floor1_resp = client.get("/api/v1/campus/map", params={"floor": 1})
     assert floor1_resp.status_code == 200
     floor1_body = floor1_resp.json()
     assert floor1_body["floors"] == [1, 2]
-    assert len(floor1_body["nodes"]) == 10
+    assert len(floor1_body["nodes"]) == 12
     assert all(node["floor"] == 1 for node in floor1_body["nodes"])
     floor1_node_ids = {node["id"] for node in floor1_body["nodes"]}
     assert all(
@@ -83,24 +83,41 @@ def test_campus_map_full_and_floor_filtering() -> None:
     assert floor2_resp.status_code == 200
     floor2_body = floor2_resp.json()
     assert floor2_body["floors"] == [1, 2]
-    assert len(floor2_body["nodes"]) == 2
+    assert len(floor2_body["nodes"]) == 4
     assert {node["id"] for node in floor2_body["nodes"]} == {
         "cc-ascensor-a-p2",
         "cc-ascensor-b-p2",
+        "cc-aula-a201",
+        "cc-sala-b202",
     }
-    assert [edge["id"] for edge in floor2_body["edges"]] == ["cc-e9"]
+    assert {edge["id"] for edge in floor2_body["edges"]} == {"cc-e9", "cc-e14", "cc-e15"}
     assert floor2_body["active_incidents"] == []
 
 
 def test_campus_locations_search_and_floor_filter() -> None:
+    all_resp = client.get("/api/v1/campus/locations")
+    assert all_resp.status_code == 200
+    all_ids = {item["id"] for item in all_resp.json()["items"]}
+    assert len(all_ids) == 13
+    assert {"cc-salida-placeres", "cc-salida-oriente"}.issubset(all_ids)
+
+    p2_resp = client.get("/api/v1/campus/locations", params={"floor": 2})
+    assert p2_resp.status_code == 200
+    assert {item["id"] for item in p2_resp.json()["items"]} == {
+        "cc-ascensor-a-p2",
+        "cc-ascensor-b-p2",
+        "cc-aula-a201",
+        "cc-sala-b202",
+    }
+
     response = client.get(
         "/api/v1/campus/locations",
         params={"search": "espana", "floor": 1},
     )
     assert response.status_code == 200
     items = response.json()["items"]
-    assert [item["id"] for item in items] == ["cc-acceso-espana"]
-    assert items[0]["floor"] == 1
+    assert [item["id"] for item in items] == ["cc-acceso-espana", "cc-salida-oriente"]
+    assert all(item["floor"] == 1 for item in items)
 
     # Accent-insensitive search (informatica matches Edificio M (Informática))
     accent_resp = client.get(
@@ -527,3 +544,48 @@ def test_settings_placeholder_detection_uses_prefix_only() -> None:
         ).is_supabase_configured
         is True
     )
+    defaults = Settings()
+    assert defaults.enable_floor_stairs is True
+    assert defaults.enable_elevation_stairs is True
+    assert defaults.stair_step_penalty_seconds == 0.7
+    assert defaults.elevation_slope_penalty_factor == 1.5
+
+
+def test_piso2_interfloor_stairs_vs_accessible_routing() -> None:
+    # Normal user takes direct inter-floor stairs cc-e16 from Edificio A P1 to Aula A-201 P2
+    stairs_resp = client.post(
+        "/api/v1/routes/calculate",
+        json={
+            "origin_node_id": "cc-edificio-a-p1",
+            "destination_node_id": "cc-aula-a201",
+            "reduced_mobility": False,
+            "use_live_weather": False,
+            "algorithm": "astar",
+        },
+    )
+    assert stairs_resp.status_code == 200
+    stairs_body = stairs_resp.json()
+    assert stairs_body["path_edge_ids"] == ["cc-e16"]
+    assert stairs_body["metrics"]["uses_stairs"] is True
+    assert stairs_body["accessibility_verified"] is False
+
+    # Reduced mobility avoids cc-e16 stairs and broken cc-ascensor-a-p1 (cc-inc-1),
+    # routing via Elevator B (cc-e8), Floor 2 bridge (cc-e9), and corridor cc-e14.
+    accessible_resp = client.post(
+        "/api/v1/routes/calculate",
+        json={
+            "origin_node_id": "cc-edificio-a-p1",
+            "destination_node_id": "cc-aula-a201",
+            "reduced_mobility": True,
+            "use_live_weather": False,
+            "algorithm": "astar",
+        },
+    )
+    assert accessible_resp.status_code == 200
+    acc_body = accessible_resp.json()
+    assert acc_body["accessibility_verified"] is True
+    assert acc_body["metrics"]["uses_stairs"] is False
+    assert acc_body["metrics"]["uses_elevator"] is True
+    assert "cc-e16" not in acc_body["path_edge_ids"]
+    assert {"cc-e8", "cc-e9", "cc-e14"}.issubset(set(acc_body["path_edge_ids"]))
+    assert any(c["incident_id"] == "cc-inc-1" for c in acc_body["avoided_conflicts"])
