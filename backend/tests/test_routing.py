@@ -333,6 +333,7 @@ def test_downward_same_floor_stairs_instruction_says_baja() -> None:
         origin_node_id="cc-edificio-a-p1",
         destination_node_id="cc-acceso-espana",
         reduced_mobility=False,
+        simulated_blocked_node_ids=["cc-explanada-espana"],
     )
 
     res = calculate_route_plan(request=req, nodes=nodes, edges=edges, incidents=incidents)

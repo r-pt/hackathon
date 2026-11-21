@@ -62,15 +62,15 @@ def test_campus_map_full_and_floor_filtering() -> None:
         "bld-m",
         "bld-p",
     }
-    assert len(full_body["nodes"]) == 16
-    assert len(full_body["edges"]) == 20
+    assert len(full_body["nodes"]) == 20
+    assert len(full_body["edges"]) == 30
     assert [inc["id"] for inc in full_body["active_incidents"]] == ["cc-inc-1"]
 
     floor1_resp = client.get("/api/v1/campus/map", params={"floor": 1})
     assert floor1_resp.status_code == 200
     floor1_body = floor1_resp.json()
     assert floor1_body["floors"] == [1, 2]
-    assert len(floor1_body["nodes"]) == 12
+    assert len(floor1_body["nodes"]) == 16
     assert all(node["floor"] == 1 for node in floor1_body["nodes"])
     floor1_node_ids = {node["id"] for node in floor1_body["nodes"]}
     assert all(
@@ -98,8 +98,19 @@ def test_campus_locations_search_and_floor_filter() -> None:
     all_resp = client.get("/api/v1/campus/locations")
     assert all_resp.status_code == 200
     all_ids = {item["id"] for item in all_resp.json()["items"]}
-    assert len(all_ids) == 13
-    assert {"cc-salida-placeres", "cc-salida-oriente"}.issubset(all_ids)
+    assert len(all_ids) == 17
+    assert {
+        "cc-salida-placeres",
+        "cc-salida-oriente",
+        "cc-explanada-espana",
+        "cc-patio-central",
+        "cc-paseo-poniente",
+        "cc-terraza-placeres",
+    }.issubset(all_ids)
+
+    p1_resp = client.get("/api/v1/campus/locations", params={"floor": 1})
+    assert p1_resp.status_code == 200
+    assert len(p1_resp.json()["items"]) == 13
 
     p2_resp = client.get("/api/v1/campus/locations", params={"floor": 2})
     assert p2_resp.status_code == 200
@@ -116,16 +127,23 @@ def test_campus_locations_search_and_floor_filter() -> None:
     )
     assert response.status_code == 200
     items = response.json()["items"]
-    assert [item["id"] for item in items] == ["cc-acceso-espana", "cc-salida-oriente"]
+    assert {item["id"] for item in items} == {
+        "cc-acceso-espana",
+        "cc-explanada-espana",
+        "cc-salida-oriente",
+    }
     assert all(item["floor"] == 1 for item in items)
 
-    # Accent-insensitive search (informatica matches Edificio M (Informática))
+    # Accent-insensitive search (informatica matches Edificio M and Paseo Poniente landmark)
     accent_resp = client.get(
         "/api/v1/campus/locations",
         params={"search": "informatica"},
     )
     assert accent_resp.status_code == 200
-    assert [item["id"] for item in accent_resp.json()["items"]] == ["cc-edificio-m"]
+    assert [item["id"] for item in accent_resp.json()["items"]] == [
+        "cc-edificio-m",
+        "cc-paseo-poniente",
+    ]
 
 
 def test_auth_me_and_preferences_persistence_in_local_demo_mode() -> None:
@@ -428,7 +446,7 @@ def test_casa_central_step1_ramp_and_same_floor_stairs_instructions() -> None:
     assert ramp_resp.status_code == 200
     step1_ramp = ramp_resp.json()["steps"][0]["instruction"]
     assert "toma la rampa" in step1_ramp
-    assert "Edificio F (Piso 1)" in step1_ramp
+    assert "Explanada Monumental Av. España" in step1_ramp
 
     stairs_resp = client.post(
         "/api/v1/routes/calculate",
@@ -437,6 +455,7 @@ def test_casa_central_step1_ramp_and_same_floor_stairs_instructions() -> None:
             "destination_node_id": "cc-edificio-a-p1",
             "reduced_mobility": False,
             "use_live_weather": False,
+            "simulated_blocked_node_ids": ["cc-explanada-espana"],
         },
     )
     assert stairs_resp.status_code == 200
@@ -589,3 +608,54 @@ def test_piso2_interfloor_stairs_vs_accessible_routing() -> None:
     assert "cc-e16" not in acc_body["path_edge_ids"]
     assert {"cc-e8", "cc-e9", "cc-e14"}.issubset(set(acc_body["path_edge_ids"]))
     assert any(c["incident_id"] == "cc-inc-1" for c in acc_body["avoided_conflicts"])
+
+
+def test_blocking_edge_cc_e6_reroutes_via_paved_plaza_cc_patio_central() -> None:
+    # Baseline direct route between Edificio A P1 and Edificio B P1 uses cc-e6 (40m)
+    baseline_resp = client.post(
+        "/api/v1/routes/calculate",
+        json={
+            "origin_node_id": "cc-edificio-a-p1",
+            "destination_node_id": "cc-edificio-b-p1",
+            "reduced_mobility": True,
+            "use_live_weather": False,
+        },
+    )
+    assert baseline_resp.status_code == 200
+    assert baseline_resp.json()["path_edge_ids"] == ["cc-e6"]
+
+    # Report a blocking incident on edge cc-e6
+    create_resp = client.post(
+        "/api/v1/incidents",
+        headers=DEMO_AUTH_HEADERS,
+        json={
+            "target_type": "edge",
+            "node_id": None,
+            "edge_id": "cc-e6",
+            "conflict_type": "corridor_closed",
+            "severity": "blocking",
+            "description": "Corredor directo Edificio A-B cerrado por obras",
+        },
+    )
+    assert create_resp.status_code == 201
+    inc_id = create_resp.json()["id"]
+
+    # Route dynamically detours through paved plaza cc-patio-central (cc-e24 + cc-e25)
+    detour_resp = client.post(
+        "/api/v1/routes/calculate",
+        json={
+            "origin_node_id": "cc-edificio-a-p1",
+            "destination_node_id": "cc-edificio-b-p1",
+            "reduced_mobility": True,
+            "use_live_weather": False,
+        },
+    )
+    assert detour_resp.status_code == 200
+    detour = detour_resp.json()
+    assert detour["path_node_ids"] == [
+        "cc-edificio-a-p1",
+        "cc-patio-central",
+        "cc-edificio-b-p1",
+    ]
+    assert detour["path_edge_ids"] == ["cc-e24", "cc-e25"]
+    assert any(c["incident_id"] == inc_id for c in detour["avoided_conflicts"])

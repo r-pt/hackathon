@@ -41,6 +41,11 @@ const NODE_TYPE_ICON: Record<NodeType, string> = {
   stairs: '🪜',
 }
 
+function getLocationOptionIcon(item: LocationItem): string {
+  if (item.building === 'Red Vial Pavimentada') return '🛣️'
+  return NODE_TYPE_ICON[item.node_type] ?? '📍'
+}
+
 function getFloorGroupLabel(floor: number, count: number): string {
   const suffix = count === 1 ? '1 lugar' : `${count} lugares`
   if (floor === 1) return `Piso 1 — Nivel Terreno (${suffix})`
@@ -141,7 +146,7 @@ function LocationSelect({
           return (
             <optgroup key={f} label={getFloorGroupLabel(f, floorLocations.length)}>
               {floorLocations.map((l) => {
-                const icon = NODE_TYPE_ICON[l.node_type] ?? '📍'
+                const icon = getLocationOptionIcon(l)
                 return (
                   <option key={l.id} value={l.id}>
                     {icon} {l.name} ({l.building})

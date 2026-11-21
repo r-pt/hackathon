@@ -121,7 +121,7 @@ export function AuthModal({ open, onOpenChange, onAuthenticated }: AuthModalProp
     <dialog
       ref={dialogRef}
       aria-labelledby="auth-modal-title"
-      className="m-auto w-full max-w-md rounded-3xl border border-zinc-200 bg-white p-6 text-zinc-900 shadow-2xl backdrop:bg-zinc-950/40 backdrop:backdrop-blur-xs"
+      className="panel-3d m-auto w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl backdrop:bg-slate-950/50 backdrop:backdrop-blur-xs"
       onClose={() => {
         if (open) onOpenChange(false)
       }}
@@ -154,14 +154,14 @@ export function AuthModal({ open, onOpenChange, onAuthenticated }: AuthModalProp
         </button>
       </div>
 
-      <div className="mt-4 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-3.5">
-        <p className="text-xs text-zinc-600">
+      <div className="card-3d mt-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5">
+        <p className="text-xs text-slate-600">
           Para pruebas de vista previa sin credenciales de Supabase activas:
         </p>
         <button
           type="button"
           onClick={handleDemoLogin}
-          className="mt-2 min-h-10 w-full rounded-xl bg-[#FACC15] px-4 py-2 font-display text-sm font-bold text-zinc-900 transition-colors hover:bg-[#FACC15]/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626]"
+          className="btn-3d mt-2 min-h-10 w-full rounded-xl bg-[#FACC15] px-4 py-2 font-display text-sm font-bold text-slate-900 transition-colors hover:bg-[#FACC15]/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626]"
         >
           Usar cuenta demo (sin Supabase)
         </button>

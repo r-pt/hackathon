@@ -19,6 +19,7 @@ interface CampusMap3DProps {
   onFloorViewChange?: (fv: 'stacked' | number) => void
   onSelectNode: (id: string) => void
   gpsActive?: boolean
+  darkMode?: boolean
 }
 
 const ISO_FLOOR_STEP = 340
@@ -26,22 +27,35 @@ const BLDG_EXTRUDE = 34
 
 const EDGE_STYLE: Record<
   EdgeType,
-  { stroke: string; bed: string; width: number; dash?: string; label: string }
+  { stroke: string; bed: string; darkBed: string; width: number; dash?: string; label: string }
 > = {
-  corridor: { stroke: '#475569', bed: '#E2E8F0', width: 3, label: 'Pasillo' },
-  ramp: { stroke: '#059669', bed: '#D1FAE5', width: 3.8, dash: '10 3 2 3', label: 'Rampa' },
-  elevator: { stroke: '#7C3AED', bed: '#EDE9FE', width: 3.8, dash: '5 4', label: 'Ascensor' },
-  stairs: { stroke: '#EA580C', bed: '#FFEDD5', width: 3.4, dash: '4 4', label: 'Escaleras' },
-  outdoor: { stroke: '#64748B', bed: '#E2E8F0', width: 2.8, dash: '2 6', label: 'Exterior' },
+  corridor: { stroke: '#334155', bed: '#94A3B8', darkBed: '#334155', width: 3, label: 'Calzada cubierta' },
+  ramp: { stroke: '#059669', bed: '#64748B', darkBed: '#1E293B', width: 3.8, dash: '10 3 2 3', label: 'Rampa pavimentada' },
+  elevator: { stroke: '#7C3AED', bed: '#EDE9FE', darkBed: '#2E1065', width: 3.8, dash: '5 4', label: 'Ascensor' },
+  stairs: { stroke: '#EA580C', bed: '#94A3B8', darkBed: '#334155', width: 3.4, dash: '4 4', label: 'Escaleras' },
+  outdoor: { stroke: '#475569', bed: '#64748B', darkBed: '#1E293B', width: 3, dash: '2 6', label: 'Vía pavimentada' },
 }
 
 const NODE_LABEL: Record<NodeType, string> = {
   entrance: 'Entrada',
   room: 'Aula / Sala',
-  corridor: 'Pasillo',
+  corridor: 'Crucero pavimentado',
   elevator: 'Ascensor',
   stairs: 'Escaleras',
   ramp: 'Rampa',
+}
+
+const PAVED_PLAZA_IDS = new Set([
+  'cc-explanada-espana',
+  'cc-patio-central',
+  'cc-paseo-poniente',
+  'cc-terraza-placeres',
+  'cc-rampa-b-c',
+])
+
+function isPavedPlazaNode(n: CampusNode): boolean {
+  const b = (n.building ?? '').toLowerCase()
+  return PAVED_PLAZA_IDS.has(n.id) || b.includes('red vial') || b.includes('paviment')
 }
 
 function rotateWorld(x: number, y: number, cx: number, cy: number, deg: number) {
@@ -59,36 +73,168 @@ function rotateWorld(x: number, y: number, cx: number, cy: number, deg: number) 
   }
 }
 
+interface BuildingShapeSpec {
+  outer: [number, number][]
+  courtyard?: { x: number; y: number; w: number; h: number }
+  tower?: { x: number; y: number; w: number; h: number; extraH: number }
+  roofKind: 'gothic-u' | 'claustro' | 'l-wing' | 't-pavilion' | 'sawtooth-h' | 'octagon' | 'hipped'
+}
+
+function getBuildingShape(b: CampusBuilding): BuildingShapeSpec {
+  const { x, y, width: w, height: h, id } = b
+  const bid = id.toLowerCase()
+
+  if (bid === 'bld-a') {
+    // U-shaped Gothic main facade with southern forecourt & central clock tower
+    return {
+      outer: [
+        [x, y],
+        [x + w, y],
+        [x + w, y + h],
+        [x + w * 0.72, y + h],
+        [x + w * 0.72, y + h * 0.74],
+        [x + w * 0.28, y + h * 0.74],
+        [x + w * 0.28, y + h],
+        [x, y + h],
+      ],
+      tower: { x: x + w * 0.38, y: y + h * 0.28, w: w * 0.24, h: h * 0.34, extraH: 20 },
+      roofKind: 'gothic-u',
+    }
+  }
+
+  if (bid === 'bld-b') {
+    // Chamfered perimeter cloister with open interior courtyard
+    const c = 14
+    return {
+      outer: [
+        [x + c, y],
+        [x + w - c, y],
+        [x + w, y + c],
+        [x + w, y + h - c],
+        [x + w - c, y + h],
+        [x + c, y + h],
+        [x, y + h - c],
+        [x, y + c],
+      ],
+      courtyard: { x: x + w * 0.33, y: y + h * 0.24, w: w * 0.34, h: h * 0.52 },
+      roofKind: 'claustro',
+    }
+  }
+
+  if (bid === 'bld-c') {
+    // L-shaped northern wing along Av. Placeres
+    return {
+      outer: [
+        [x, y],
+        [x + w, y],
+        [x + w, y + h],
+        [x + w * 0.24, y + h],
+        [x + w * 0.24, y + h * 0.62],
+        [x, y + h * 0.62],
+      ],
+      roofKind: 'l-wing',
+    }
+  }
+
+  if (bid === 'bld-m') {
+    // T-shaped stepped modern pavilion (Informática)
+    return {
+      outer: [
+        [x, y],
+        [x + w, y],
+        [x + w, y + h * 0.58],
+        [x + w * 0.82, y + h * 0.58],
+        [x + w * 0.82, y + h],
+        [x + w * 0.18, y + h],
+        [x + w * 0.18, y + h * 0.58],
+        [x, y + h * 0.58],
+      ],
+      roofKind: 't-pavilion',
+    }
+  }
+
+  if (bid === 'bld-f') {
+    // H-shaped twin-nave industrial workshop with sawtooth roof
+    return {
+      outer: [
+        [x, y],
+        [x + w * 0.36, y],
+        [x + w * 0.36, y + h * 0.2],
+        [x + w * 0.64, y + h * 0.2],
+        [x + w * 0.64, y],
+        [x + w, y],
+        [x + w, y + h],
+        [x + w * 0.64, y + h],
+        [x + w * 0.64, y + h * 0.8],
+        [x + w * 0.36, y + h * 0.8],
+        [x + w * 0.36, y + h],
+        [x, y + h],
+      ],
+      roofKind: 'sawtooth-h',
+    }
+  }
+
+  if (bid === 'bld-p') {
+    // Octagonal chamfered Federation pavilion
+    const c = Math.min(24, w * 0.2, h * 0.22)
+    return {
+      outer: [
+        [x + c, y],
+        [x + w - c, y],
+        [x + w, y + c],
+        [x + w, y + h - c],
+        [x + w - c, y + h],
+        [x + c, y + h],
+        [x, y + h - c],
+        [x, y + c],
+      ],
+      roofKind: 'octagon',
+    }
+  }
+
+  return {
+    outer: [
+      [x, y],
+      [x + w, y],
+      [x + w, y + h],
+      [x, y + h],
+    ],
+    roofKind: 'hipped',
+  }
+}
+
 function NodeGlyph({
   type,
   r = 7.5,
   onRoute = false,
+  isDark = false,
 }: {
   type: NodeType
   r?: number
   onRoute?: boolean
+  isDark?: boolean
 }) {
-  const stroke = onRoute ? '#DC2626' : '#0F172A'
+  const stroke = onRoute ? '#DC2626' : isDark ? '#F8FAFC' : '#0F172A'
   const sw = onRoute ? 2.4 : 1.8
 
   switch (type) {
     case 'entrance':
-      return <rect x={-r} y={-r} width={2 * r} height={2 * r} rx={3} fill="#FEF3C7" stroke={stroke} strokeWidth={sw} />
+      return <rect x={-r} y={-r} width={2 * r} height={2 * r} rx={3} fill={isDark ? '#78350F' : '#FEF3C7'} stroke={stroke} strokeWidth={sw} />
     case 'elevator':
       return (
         <g>
-          <rect x={-r} y={-r - 2} width={2 * r} height={2 * r + 4} rx={4} fill="#EDE9FE" stroke={stroke} strokeWidth={sw} />
-          <path d="M-3,-2 L0,-5.5 L3,-2 M-3,2 L0,5.5 L3,2" fill="none" stroke="#5B21B6" strokeWidth={1.6} />
+          <rect x={-r} y={-r - 2} width={2 * r} height={2 * r + 4} rx={4} fill={isDark ? '#4C1D95' : '#EDE9FE'} stroke={stroke} strokeWidth={sw} />
+          <path d="M-3,-2 L0,-5.5 L3,-2 M-3,2 L0,5.5 L3,2" fill="none" stroke={isDark ? '#DDD6FE' : '#5B21B6'} strokeWidth={1.6} />
         </g>
       )
     case 'stairs':
-      return <polygon points={`0,${-r - 2} ${r + 2},${r + 1} ${-r - 2},${r + 1}`} fill="#FFEDD5" stroke={stroke} strokeWidth={sw} />
+      return <polygon points={`0,${-r - 2} ${r + 2},${r + 1} ${-r - 2},${r + 1}`} fill={isDark ? '#7C2D12' : '#FFEDD5'} stroke={stroke} strokeWidth={sw} />
     case 'ramp':
-      return <polygon points={`${-r - 2},${r} ${r + 2},${r} ${r + 2},${-r}`} fill="#D1FAE5" stroke={stroke} strokeWidth={sw} />
+      return <polygon points={`${-r - 2},${r} ${r + 2},${r} ${r + 2},${-r}`} fill={isDark ? '#064E3B' : '#D1FAE5'} stroke={stroke} strokeWidth={sw} />
     case 'corridor':
-      return <circle r={r - 2} fill="#F1F5F9" stroke={stroke} strokeWidth={sw} />
+      return <circle r={r - 1.5} fill={isDark ? '#334155' : '#F1F5F9'} stroke={stroke} strokeWidth={sw} />
     default:
-      return <circle r={r} fill="#FFFFFF" stroke={stroke} strokeWidth={sw} />
+      return <circle r={r} fill={isDark ? '#1E293B' : '#FFFFFF'} stroke={stroke} strokeWidth={sw} />
   }
 }
 
@@ -98,10 +244,10 @@ function PersonAvatarAsset({ gpsActive, shadowFilterUrl }: { gpsActive?: boolean
       <circle
         r={18}
         fill="#0EA5E9"
-        fillOpacity={gpsActive ? 0.18 : 0.14}
+        fillOpacity={gpsActive ? 0.22 : 0.16}
         stroke="#0EA5E9"
         strokeWidth={1.5}
-        strokeOpacity={0.55}
+        strokeOpacity={0.6}
       />
       {gpsActive && (
         <>
@@ -146,10 +292,12 @@ function CompassRose({
   angleDeg,
   rotation,
   onReset,
+  isDark,
 }: {
   angleDeg: number
   rotation: number
   onReset: () => void
+  isDark: boolean
 }) {
   const cardinals: { label: string; x: number; y: number; isNorth?: boolean }[] = [
     { label: 'N', x: 0, y: -33, isNorth: true },
@@ -167,38 +315,31 @@ function CompassRose({
       className="panel-3d absolute top-3 right-3 z-10 flex flex-col items-center gap-0.5 rounded-2xl p-1.5 backdrop-blur-md transition-transform duration-150 hover:scale-105 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626]"
     >
       <svg width="72" height="72" viewBox="-44 -44 88 88" aria-hidden="true">
-        {/* Outer dial ring */}
-        <circle r={40} fill="#F8FAFC" stroke="#CBD5E1" strokeWidth={1.5} />
-        <circle r={24} fill="none" stroke="#E2E8F0" strokeWidth={1} strokeDasharray="3 3" />
+        <circle r={40} fill={isDark ? '#0F172A' : '#F8FAFC'} stroke={isDark ? '#334155' : '#CBD5E1'} strokeWidth={1.5} />
+        <circle r={24} fill="none" stroke={isDark ? '#1E293B' : '#E2E8F0'} strokeWidth={1} strokeDasharray="3 3" />
 
-        {/* Rotating 8-point Polar Star */}
         <g transform={`rotate(${angleDeg})`}>
-          {/* Minor diagonal points (NE, SE, SO, NO) */}
-          <polygon points="0,0 14,-14 4,0" fill="#94A3B8" />
-          <polygon points="0,0 14,-14 0,-4" fill="#CBD5E1" />
-          <polygon points="0,0 14,14 0,4" fill="#94A3B8" />
-          <polygon points="0,0 14,14 4,0" fill="#CBD5E1" />
-          <polygon points="0,0 -14,14 -4,0" fill="#94A3B8" />
-          <polygon points="0,0 -14,14 0,4" fill="#CBD5E1" />
-          <polygon points="0,0 -14,-14 0,-4" fill="#94A3B8" />
-          <polygon points="0,0 -14,-14 -4,0" fill="#CBD5E1" />
+          <polygon points="0,0 14,-14 4,0" fill={isDark ? '#475569' : '#94A3B8'} />
+          <polygon points="0,0 14,-14 0,-4" fill={isDark ? '#64748B' : '#CBD5E1'} />
+          <polygon points="0,0 14,14 0,4" fill={isDark ? '#475569' : '#94A3B8'} />
+          <polygon points="0,0 14,14 4,0" fill={isDark ? '#64748B' : '#CBD5E1'} />
+          <polygon points="0,0 -14,14 -4,0" fill={isDark ? '#475569' : '#94A3B8'} />
+          <polygon points="0,0 -14,14 0,4" fill={isDark ? '#64748B' : '#CBD5E1'} />
+          <polygon points="0,0 -14,-14 0,-4" fill={isDark ? '#475569' : '#94A3B8'} />
+          <polygon points="0,0 -14,-14 -4,0" fill={isDark ? '#64748B' : '#CBD5E1'} />
 
-          {/* Main cardinal points (E, S, O) */}
-          <polygon points="0,0 24,0 0,5" fill="#475569" />
-          <polygon points="0,0 24,0 0,-5" fill="#94A3B8" />
-          <polygon points="0,0 0,24 -5,0" fill="#334155" />
-          <polygon points="0,0 0,24 5,0" fill="#64748B" />
-          <polygon points="0,0 -24,0 0,-5" fill="#475569" />
-          <polygon points="0,0 -24,0 0,5" fill="#94A3B8" />
+          <polygon points="0,0 24,0 0,5" fill={isDark ? '#64748B' : '#475569'} />
+          <polygon points="0,0 24,0 0,-5" fill={isDark ? '#94A3B8' : '#94A3B8'} />
+          <polygon points="0,0 0,24 -5,0" fill={isDark ? '#475569' : '#334155'} />
+          <polygon points="0,0 0,24 5,0" fill={isDark ? '#94A3B8' : '#64748B'} />
+          <polygon points="0,0 -24,0 0,-5" fill={isDark ? '#64748B' : '#475569'} />
+          <polygon points="0,0 -24,0 0,5" fill={isDark ? '#94A3B8' : '#94A3B8'} />
 
-          {/* Polar Star North Needle (#DC2626) */}
-          <polygon points="0,0 0,-26 5.5,0" fill="#DC2626" />
+          <polygon points="0,0 0,-26 5.5,0" fill="#EF4444" />
           <polygon points="0,0 0,-26 -5.5,0" fill="#991B1B" />
 
-          {/* Center jewel */}
           <circle r={3.2} fill="#FFFFFF" stroke="#0F172A" strokeWidth={1.3} />
 
-          {/* Upright Cardinal Letters */}
           {cardinals.map((c) => (
             <g key={c.label} transform={`translate(${c.x}, ${c.y}) rotate(${-angleDeg})`}>
               <text
@@ -207,7 +348,7 @@ function CompassRose({
                 fontFamily="'Space Grotesk', system-ui, sans-serif"
                 fontSize={c.isNorth ? '11.5' : '10'}
                 fontWeight="800"
-                fill={c.isNorth ? '#DC2626' : '#0F172A'}
+                fill={c.isNorth ? '#EF4444' : isDark ? '#F1F5F9' : '#0F172A'}
               >
                 {c.label}
               </text>
@@ -215,7 +356,7 @@ function CompassRose({
           ))}
         </g>
       </svg>
-      <span className="font-display text-[10px] font-bold leading-none text-slate-600">
+      <span className={`font-display text-[10px] font-bold leading-none ${isDark ? 'text-slate-300' : 'text-slate-600'}`}>
         {rotation === 0 ? 'Norte' : `${rotation}° (Reiniciar)`}
       </span>
     </button>
@@ -231,6 +372,7 @@ export function CampusMap3D({
   onFloorViewChange,
   onSelectNode,
   gpsActive = false,
+  darkMode,
 }: CampusMap3DProps) {
   const rawFilterId = useId()
   const shadowFilterId = `cm3d-shadow-${rawFilterId.replace(/:/g, '')}`
@@ -242,11 +384,33 @@ export function CampusMap3D({
   const [showLabels, setShowLabels] = useState<boolean>(true)
   const [showRoofs, setShowRoofs] = useState<boolean>(true)
   const [internalFloor, setInternalFloor] = useState<'stacked' | number>(floorView)
+  const [domDark, setDomDark] = useState<boolean>(() =>
+    typeof document !== 'undefined' ? document.documentElement.classList.contains('dark') : false
+  )
 
   useEffect(() => {
     setInternalFloor(floorView)
   }, [floorView])
 
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    const sync = () => setDomDark(document.documentElement.classList.contains('dark'))
+    sync()
+    const obs = new MutationObserver(sync)
+    obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    const onTheme = (ev: Event) => {
+      const detail = (ev as CustomEvent<{ dark?: boolean }>).detail
+      if (typeof detail?.dark === 'boolean') setDomDark(detail.dark)
+      else sync()
+    }
+    window.addEventListener('rutacampus-theme', onTheme)
+    return () => {
+      obs.disconnect()
+      window.removeEventListener('rutacampus-theme', onTheme)
+    }
+  }, [])
+
+  const isDark = darkMode ?? domDark
   const activeFloorView = onFloorViewChange ? floorView : internalFloor
   const stacked = activeFloorView === 'stacked'
 
@@ -277,7 +441,10 @@ export function CampusMap3D({
     const dynamicGroups = new Map<string, CampusNode[]>()
     for (const n of map.nodes) {
       const bName = (n.building ?? '').trim()
-      if (!bName || bName.toLowerCase() === 'exterior' || bName.includes('-')) continue
+      const bl = bName.toLowerCase()
+      if (!bName || bl === 'exterior' || bl.includes('red vial') || bl.includes('paviment') || bName.includes('-')) {
+        continue
+      }
       if (findMatchingBuilding(bName, n)) continue
       const list = dynamicGroups.get(bName) ?? []
       list.push(n)
@@ -351,7 +518,9 @@ export function CampusMap3D({
       const bl = b.name.toLowerCase()
       for (const n of map.nodes) {
         const nb = (n.building ?? '').trim().toLowerCase()
-        if (!nb || nb === 'exterior' || nb.includes('-')) continue
+        if (!nb || nb === 'exterior' || nb.includes('red vial') || nb.includes('paviment') || nb.includes('-')) {
+          continue
+        }
         if (bl.includes(nb) || nb.includes(bl)) {
           const p = spacedCoords.get(n.id) ?? { x: n.x, y: n.y }
           minX = Math.min(minX, p.x - 18)
@@ -449,7 +618,7 @@ export function CampusMap3D({
           [b.x, b.y + b.height],
         ]) {
           samples.push(rawProject(bx, by, fl, -BLDG_EXTRUDE))
-          samples.push(rawProject(bx, by, fl, 26))
+          samples.push(rawProject(bx, by, fl, 36))
         }
       }
       if (fl === renderedFloors[0] || viewMode === 'top') {
@@ -470,8 +639,8 @@ export function CampusMap3D({
     for (const n of map.nodes) {
       if (!stacked && n.floor !== activeFloorView) continue
       const p = spacedCoords.get(n.id) ?? { x: n.x, y: n.y }
-      samples.push(rawProject(p.x, p.y, n.floor, 28))
-      samples.push(rawProject(p.x, p.y, n.floor, -12))
+      samples.push(rawProject(p.x, p.y, n.floor, 32))
+      samples.push(rawProject(p.x, p.y, n.floor, -14))
     }
 
     const padX = 88
@@ -583,6 +752,45 @@ export function CampusMap3D({
     for (const inc of activeIncidents) if (inc.edge_id) m.set(inc.edge_id, inc)
     return m
   }, [activeIncidents])
+
+  const { blockingNodeIds, blockingEdgeIds, warningNodeIds, warningEdgeIds } = useMemo(() => {
+    const bn = new Set<string>()
+    const be = new Set<string>()
+    const wn = new Set<string>()
+    const we = new Set<string>()
+    for (const inc of activeIncidents) {
+      if (inc.severity === 'blocking') {
+        if (inc.node_id) bn.add(inc.node_id)
+        if (inc.edge_id) be.add(inc.edge_id)
+      } else {
+        if (inc.node_id) wn.add(inc.node_id)
+        if (inc.edge_id) we.add(inc.edge_id)
+      }
+    }
+    return { blockingNodeIds: bn, blockingEdgeIds: be, warningNodeIds: wn, warningEdgeIds: we }
+  }, [activeIncidents])
+
+  const isEdgeBlocked = (e: CampusEdge) =>
+    blockingEdgeIds.has(e.id) || blockingNodeIds.has(e.from_node_id) || blockingNodeIds.has(e.to_node_id)
+
+  const isEdgeWarning = (e: CampusEdge) =>
+    !isEdgeBlocked(e) &&
+    (warningEdgeIds.has(e.id) || warningNodeIds.has(e.from_node_id) || warningNodeIds.has(e.to_node_id))
+
+  const pathStats = useMemo(() => {
+    const total = map.edges.length
+    let blocked = 0
+    for (const e of map.edges) {
+      if (
+        blockingEdgeIds.has(e.id) ||
+        blockingNodeIds.has(e.from_node_id) ||
+        blockingNodeIds.has(e.to_node_id)
+      ) {
+        blocked++
+      }
+    }
+    return { total, available: Math.max(0, total - blocked), blocked }
+  }, [map.edges, blockingEdgeIds, blockingNodeIds])
 
   const crossFloorNodeIncidents = useMemo(() => {
     const m = new Map<string, Incident>()
@@ -726,8 +934,8 @@ export function CampusMap3D({
           height={22}
           rx={11}
           fill="#0F172A"
-          fillOpacity={0.92}
-          stroke="#FFFFFF"
+          fillOpacity={0.94}
+          stroke={isDark ? color : '#FFFFFF'}
           strokeWidth={1.4}
           filter={withShadow ? shadowFilterUrl : undefined}
         />
@@ -747,188 +955,431 @@ export function CampusMap3D({
     )
   }
 
-  const renderIsoBuilding = (b: CampusBuilding, fl: number) => {
-    const corners: [number, number][] = [
-      [b.x, b.y],
-      [b.x + b.width, b.y],
-      [b.x + b.width, b.y + b.height],
-      [b.x, b.y + b.height],
-    ]
-    const basePts = corners.map(([x, y]) => project(x, y, fl, -BLDG_EXTRUDE))
-    const topPts = corners.map(([x, y]) => project(x, y, fl, 0))
+  const renderIsoPolygonExtrusion = (
+    polyWorld: [number, number][],
+    fl: number,
+    zBottom: number,
+    zTop: number,
+    color: string,
+    keyPrefix: string,
+    withWindows: boolean
+  ) => {
+    const basePts = polyWorld.map(([x, y]) => project(x, y, fl, zBottom))
+    const topPts = polyWorld.map(([x, y]) => project(x, y, fl, zTop))
     const shadowPts = basePts.map((p) => `${p.x + 6},${p.y + 8}`)
 
-    const walls = [0, 1, 2, 3].map((i) => {
-      const j = (i + 1) % 4
+    const walls = polyWorld.map((_, i) => {
+      const j = (i + 1) % polyWorld.length
+      const b0 = basePts[i]
+      const b1 = basePts[j]
+      const t0 = topPts[i]
+      const t1 = topPts[j]
+      const dx = b1.x - b0.x
+      const dy = b1.y - b0.y
+      const segLen = Math.hypot(dx, dy)
       return {
-        midX: (basePts[i].x + basePts[j].x) / 2,
-        midY: (basePts[i].y + basePts[j].y) / 2,
-        pts: `${basePts[i].x},${basePts[i].y} ${basePts[j].x},${basePts[j].y} ${topPts[j].x},${topPts[j].y} ${topPts[i].x},${topPts[i].y}`,
+        idx: i,
+        b0,
+        b1,
+        t0,
+        t1,
+        dx,
+        dy,
+        segLen,
+        midX: (b0.x + b1.x) / 2,
+        midY: (b0.y + b1.y) / 2,
+        pts: `${b0.x},${b0.y} ${b1.x},${b1.y} ${t1.x},${t1.y} ${t0.x},${t0.y}`,
       }
     })
-    walls.sort((a, c) => c.midY - a.midY)
-    const [leftWall, rightWall] = walls.slice(0, 2).sort((a, c) => a.midX - c.midX)
+    walls.sort((a, c) => a.midY - c.midY)
 
-    const topPoly = topPts.map((p) => `${p.x},${p.y}`).join(' ')
-    const roofCenterX = topPts.reduce((acc, p) => acc + p.x, 0) / 4
-    const roofTopY = Math.min(...topPts.map((p) => p.y))
+    return {
+      basePts,
+      topPts,
+      element: (
+        <g key={keyPrefix}>
+          <polygon points={shadowPts.join(' ')} fill="#020617" fillOpacity={isDark ? 0.36 : 0.12} />
+          {walls.map((w) => {
+            const isRightShade = w.dx >= 0
+            const winCount = withWindows && w.segLen >= 34 ? Math.min(5, Math.floor(w.segLen / 24)) : 0
+            return (
+              <g key={`${keyPrefix}-w-${w.idx}`}>
+                <polygon
+                  points={w.pts}
+                  fill={color}
+                  fillOpacity={isDark ? (isRightShade ? 0.86 : 0.72) : isRightShade ? 0.78 : 0.64}
+                  stroke={isDark ? '#020617' : '#0F172A'}
+                  strokeOpacity={0.35}
+                  strokeWidth={1.1}
+                />
+                <polygon
+                  points={w.pts}
+                  fill="#020617"
+                  fillOpacity={isDark ? (isRightShade ? 0.44 : 0.24) : isRightShade ? 0.26 : 0.12}
+                />
+                {/* Illuminated architectural windows on front-facing walls */}
+                {winCount > 0 &&
+                  Array.from({ length: winCount }, (_, wi) => {
+                    const t = (wi + 0.7) / (winCount + 0.4)
+                    const wx0 = w.b0.x + (w.b1.x - w.b0.x) * (t - 0.08)
+                    const wy0 = w.b0.y + (w.b1.y - w.b0.y) * (t - 0.08)
+                    const wx1 = w.b0.x + (w.b1.x - w.b0.x) * (t + 0.08)
+                    const wy1 = w.b0.y + (w.b1.y - w.b0.y) * (t + 0.08)
+                    const hLow = 0.28
+                    const hHigh = 0.72
+                    const vx = w.t0.x - w.b0.x
+                    const vy = w.t0.y - w.b0.y
+                    const pA = `${wx0 + vx * hLow},${wy0 + vy * hLow}`
+                    const pB = `${wx1 + vx * hLow},${wy1 + vy * hLow}`
+                    const pC = `${wx1 + vx * hHigh},${wy1 + vy * hHigh}`
+                    const pD = `${wx0 + vx * hHigh},${wy0 + vy * hHigh}`
+                    return (
+                      <polygon
+                        key={`win-${wi}`}
+                        points={`${pA} ${pB} ${pC} ${pD}`}
+                        fill={isDark ? '#FDE047' : '#E0F2FE'}
+                        fillOpacity={isDark ? 0.78 : 0.62}
+                        stroke={isDark ? '#FACC15' : '#FFFFFF'}
+                        strokeWidth={0.6}
+                      />
+                    )
+                  })}
+              </g>
+            )
+          })}
+          <polygon
+            points={topPts.map((p) => `${p.x},${p.y}`).join(' ')}
+            fill={isDark ? '#0F172A' : '#FFFFFF'}
+            fillOpacity={isDark ? 0.9 : 0.92}
+          />
+          <polygon
+            points={topPts.map((p) => `${p.x},${p.y}`).join(' ')}
+            fill={color}
+            fillOpacity={isDark ? 0.28 : 0.22}
+            stroke={color}
+            strokeWidth={2.2}
+          />
+        </g>
+      ),
+    }
+  }
+
+  const renderIsoBuilding = (b: CampusBuilding, fl: number) => {
+    const spec = getBuildingShape(b)
     const isTopFloor = fl === Math.max(1, b.floors)
     const drawRoof = showRoofs && isTopFloor
 
-    let roofOverlay: React.ReactNode = null
-    if (drawRoof) {
-      const eaves = 6
-      const roofPeak = 20
-      const eaveWorld: [number, number][] = [
-        [b.x - eaves, b.y - eaves],
-        [b.x + b.width + eaves, b.y - eaves],
-        [b.x + b.width + eaves, b.y + b.height + eaves],
-        [b.x - eaves, b.y + b.height + eaves],
-      ]
-      const eavePts = eaveWorld.map(([x, y]) => project(x, y, fl, 0))
-      const eaveShadowPts = eavePts.map((p) => `${p.x + 4},${p.y + 6}`).join(' ')
+    const mainExtrusion = renderIsoPolygonExtrusion(
+      spec.outer,
+      fl,
+      -BLDG_EXTRUDE,
+      0,
+      b.color,
+      `iso-main-${b.id}-${fl}`,
+      true
+    )
 
-      const wide = b.width >= b.height
-      const ridgeA = wide
-        ? project(b.x + b.width * 0.24, b.y + b.height / 2, fl, roofPeak)
-        : project(b.x + b.width / 2, b.y + b.height * 0.24, fl, roofPeak)
-      const ridgeB = wide
-        ? project(b.x + b.width * 0.76, b.y + b.height / 2, fl, roofPeak)
-        : project(b.x + b.width / 2, b.y + b.height * 0.76, fl, roofPeak)
+    const topPts = mainExtrusion.topPts
+    const roofCenterX = topPts.reduce((acc, p) => acc + p.x, 0) / topPts.length
+    const roofTopY = Math.min(...topPts.map((p) => p.y))
+    const polyStr = (pts: { x: number; y: number }[]) => pts.map((p) => `${p.x},${p.y}`).join(' ')
 
-      const polyStr = (pts: { x: number; y: number }[]) => pts.map((p) => `${p.x},${p.y}`).join(' ')
-      const slopes = wide
-        ? [
-            { pts: polyStr([eavePts[0], eavePts[1], ridgeB, ridgeA]), opacity: 0.28, shade: '#0F172A', shadeOp: 0.08 },
-            { pts: polyStr([eavePts[1], eavePts[2], ridgeB]), opacity: 0.24, shade: '#0F172A', shadeOp: 0.05 },
-            { pts: polyStr([eavePts[2], eavePts[3], ridgeA, ridgeB]), opacity: 0.17, shade: '#FFFFFF', shadeOp: 0.14 },
-            { pts: polyStr([eavePts[3], eavePts[0], ridgeA]), opacity: 0.21, shade: '#FFFFFF', shadeOp: 0.06 },
-          ]
-        : [
-            { pts: polyStr([eavePts[0], eavePts[1], ridgeA]), opacity: 0.28, shade: '#0F172A', shadeOp: 0.08 },
-            { pts: polyStr([eavePts[1], eavePts[2], ridgeB, ridgeA]), opacity: 0.24, shade: '#0F172A', shadeOp: 0.05 },
-            { pts: polyStr([eavePts[2], eavePts[3], ridgeB]), opacity: 0.17, shade: '#FFFFFF', shadeOp: 0.14 },
-            { pts: polyStr([eavePts[3], eavePts[0], ridgeA, ridgeB]), opacity: 0.21, shade: '#FFFFFF', shadeOp: 0.06 },
-          ]
-
-      const skyInsetX = b.width * 0.26
-      const skyInsetY = b.height * 0.26
-      const skylightPts = (
+    // Optional sunken interior courtyard (Edificio B Claustro)
+    let courtyardNode: React.ReactNode = null
+    if (spec.courtyard) {
+      const { x: cx, y: cy, w: cw, h: ch } = spec.courtyard
+      const cPts = (
         [
-          [b.x + skyInsetX, b.y + skyInsetY],
-          [b.x + b.width - skyInsetX, b.y + skyInsetY],
-          [b.x + b.width - skyInsetX, b.y + b.height - skyInsetY],
-          [b.x + skyInsetX, b.y + b.height - skyInsetY],
+          [cx, cy],
+          [cx + cw, cy],
+          [cx + cw, cy + ch],
+          [cx, cy + ch],
         ] as [number, number][]
-      ).map(([x, y]) => project(x, y, fl, roofPeak * 0.68))
-
-      roofOverlay = (
+      ).map(([px, py]) => project(px, py, fl, 0))
+      const cFloorPts = (
+        [
+          [cx + 4, cy + 4],
+          [cx + cw - 4, cy + 4],
+          [cx + cw - 4, cy + ch - 4],
+          [cx + 4, cy + ch - 4],
+        ] as [number, number][]
+      ).map(([px, py]) => project(px, py, fl, -8))
+      courtyardNode = (
         <g pointerEvents="none" aria-hidden="true">
-          {/* Soft eaves drop shadow onto upper facade */}
-          <polygon points={eaveShadowPts} fill="#0F172A" fillOpacity={0.11} />
-          {/* 4 shaded faceted hipped roof slopes (translucent so interiors remain visible) */}
-          {slopes.map((s, si) => (
-            <g key={`slope-${si}`}>
-              <polygon points={s.pts} fill={b.color} fillOpacity={s.opacity} stroke={b.color} strokeOpacity={0.55} strokeWidth={1.1} />
-              <polygon points={s.pts} fill={s.shade} fillOpacity={s.shadeOp} />
-            </g>
-          ))}
-          {/* Translucent skylight cutaway center */}
           <polygon
-            points={polyStr(skylightPts)}
-            fill="#E0F2FE"
-            fillOpacity={0.18}
-            stroke="#FFFFFF"
-            strokeOpacity={0.8}
-            strokeWidth={1.2}
-            strokeDasharray="4 3"
+            points={polyStr(cPts)}
+            fill={isDark ? '#022C22' : '#DCFCE7'}
+            fillOpacity={0.75}
+            stroke={b.color}
+            strokeWidth={1.6}
           />
-          {/* Roof ridge highlight */}
-          <line
-            x1={ridgeA.x}
-            y1={ridgeA.y}
-            x2={ridgeB.x}
-            y2={ridgeB.y}
-            stroke="#FFFFFF"
-            strokeOpacity={0.88}
-            strokeWidth={2.4}
-            strokeLinecap="round"
+          <polygon
+            points={polyStr(cFloorPts)}
+            fill={isDark ? '#064E3B' : '#86EFAC'}
+            fillOpacity={0.5}
+            stroke="#10B981"
+            strokeWidth={1}
+            strokeDasharray="3 3"
           />
         </g>
       )
     }
 
+    // Optional 3D Gothic Central Clock Tower (Edificio A)
+    let towerNode: React.ReactNode = null
+    if (spec.tower && isTopFloor) {
+      const { x: tx, y: ty, w: tw, h: th, extraH } = spec.tower
+      const tPoly: [number, number][] = [
+        [tx, ty],
+        [tx + tw, ty],
+        [tx + tw, ty + th],
+        [tx, ty + th],
+      ]
+      const towerExt = renderIsoPolygonExtrusion(
+        tPoly,
+        fl,
+        0,
+        extraH,
+        b.color,
+        `iso-tower-${b.id}-${fl}`,
+        false
+      )
+      const spireApex = project(tx + tw / 2, ty + th / 2, fl, extraH + 18)
+      const tTop = towerExt.topPts
+      const clockCenter = project(tx + tw / 2, ty + th, fl, extraH * 0.55)
+      towerNode = (
+        <g pointerEvents="none" aria-hidden="true">
+          {towerExt.element}
+          {drawRoof &&
+            [0, 1, 2, 3].map((i) => {
+              const j = (i + 1) % 4
+              return (
+                <polygon
+                  key={`spire-${i}`}
+                  points={`${tTop[i].x},${tTop[i].y} ${tTop[j].x},${tTop[j].y} ${spireApex.x},${spireApex.y}`}
+                  fill={b.color}
+                  fillOpacity={0.45}
+                  stroke="#FFFFFF"
+                  strokeOpacity={0.75}
+                  strokeWidth={1}
+                />
+              )
+            })}
+          <circle
+            cx={clockCenter.x}
+            cy={clockCenter.y}
+            r={4.2}
+            fill="#FEF08A"
+            stroke="#0F172A"
+            strokeWidth={1.2}
+          />
+        </g>
+      )
+    }
+
+    // Translucent 3D Architectural Roof (`Techos 3D`) matching each building variant
+    let roofOverlay: React.ReactNode = null
+    if (drawRoof) {
+      const roofPeak = 20
+      const eavePts = spec.outer.map(([wx, wy]) => {
+        const cx = b.x + b.width / 2
+        const cy = b.y + b.height / 2
+        const dx = wx - cx
+        const dy = wy - cy
+        const len = Math.hypot(dx, dy) || 1
+        return project(wx + (dx / len) * 6, wy + (dy / len) * 6, fl, 0)
+      })
+      const eaveShadowPts = eavePts.map((p) => `${p.x + 4},${p.y + 6}`).join(' ')
+
+      if (spec.roofKind === 'sawtooth-h') {
+        // Two parallel sawtooth / twin-nave pitched roofs for Edificio F
+        const naveW = b.width * 0.36
+        const naves = [
+          { x0: b.x, x1: b.x + naveW },
+          { x0: b.x + b.width - naveW, x1: b.x + b.width },
+        ]
+        roofOverlay = (
+          <g pointerEvents="none" aria-hidden="true">
+            <polygon points={eaveShadowPts} fill="#020617" fillOpacity={0.14} />
+            {naves.map((nv, ni) => {
+              const rA = project((nv.x0 + nv.x1) / 2, b.y + b.height * 0.16, fl, roofPeak)
+              const rB = project((nv.x0 + nv.x1) / 2, b.y + b.height * 0.84, fl, roofPeak)
+              const c0 = project(nv.x0 - 4, b.y - 4, fl, 0)
+              const c1 = project(nv.x1 + 4, b.y - 4, fl, 0)
+              const c2 = project(nv.x1 + 4, b.y + b.height + 4, fl, 0)
+              const c3 = project(nv.x0 - 4, b.y + b.height + 4, fl, 0)
+              return (
+                <g key={`saw-${ni}`}>
+                  <polygon points={polyStr([c0, c1, rA])} fill={b.color} fillOpacity={0.26} stroke={b.color} strokeWidth={1.1} />
+                  <polygon points={polyStr([c1, c2, rB, rA])} fill={b.color} fillOpacity={0.22} stroke={b.color} strokeWidth={1.1} />
+                  <polygon points={polyStr([c2, c3, rB])} fill={b.color} fillOpacity={0.18} stroke={b.color} strokeWidth={1.1} />
+                  <polygon points={polyStr([c3, c0, rA, rB])} fill={b.color} fillOpacity={0.24} stroke={b.color} strokeWidth={1.1} />
+                  <line x1={rA.x} y1={rA.y} x2={rB.x} y2={rB.y} stroke="#FFFFFF" strokeWidth={2.2} strokeOpacity={0.85} strokeLinecap="round" />
+                </g>
+              )
+            })}
+          </g>
+        )
+      } else {
+        // Multi-faceted hipped / octagonal roof following the non-rectangular outer perimeter
+        const wide = b.width >= b.height
+        const ridgeA = wide
+          ? project(b.x + b.width * 0.26, b.y + b.height * 0.44, fl, roofPeak)
+          : project(b.x + b.width * 0.5, b.y + b.height * 0.26, fl, roofPeak)
+        const ridgeB = wide
+          ? project(b.x + b.width * 0.74, b.y + b.height * 0.44, fl, roofPeak)
+          : project(b.x + b.width * 0.5, b.y + b.height * 0.74, fl, roofPeak)
+
+        const skyInsetX = b.width * 0.28
+        const skyInsetY = b.height * 0.28
+        const skylightPts = (
+          [
+            [b.x + skyInsetX, b.y + skyInsetY],
+            [b.x + b.width - skyInsetX, b.y + skyInsetY],
+            [b.x + b.width - skyInsetX, b.y + b.height - skyInsetY],
+            [b.x + skyInsetX, b.y + b.height - skyInsetY],
+          ] as [number, number][]
+        ).map(([x, y]) => project(x, y, fl, roofPeak * 0.65))
+
+        roofOverlay = (
+          <g pointerEvents="none" aria-hidden="true">
+            <polygon points={eaveShadowPts} fill="#020617" fillOpacity={0.13} />
+            {eavePts.map((ep, i) => {
+              const nextEp = eavePts[(i + 1) % eavePts.length]
+              const midX = (ep.x + nextEp.x) / 2
+              const apex = Math.abs(midX - ridgeA.x) <= Math.abs(midX - ridgeB.x) ? ridgeA : ridgeB
+              const op = i % 2 === 0 ? 0.24 : 0.18
+              return (
+                <polygon
+                  key={`facet-${i}`}
+                  points={polyStr([ep, nextEp, apex])}
+                  fill={b.color}
+                  fillOpacity={op}
+                  stroke={b.color}
+                  strokeOpacity={0.55}
+                  strokeWidth={1.1}
+                />
+              )
+            })}
+            <polygon
+              points={polyStr(skylightPts)}
+              fill="#38BDF8"
+              fillOpacity={0.18}
+              stroke="#FFFFFF"
+              strokeOpacity={0.82}
+              strokeWidth={1.2}
+              strokeDasharray="4 3"
+            />
+            <line
+              x1={ridgeA.x}
+              y1={ridgeA.y}
+              x2={ridgeB.x}
+              y2={ridgeB.y}
+              stroke="#FFFFFF"
+              strokeOpacity={0.88}
+              strokeWidth={2.4}
+              strokeLinecap="round"
+            />
+          </g>
+        )
+      }
+    }
+
+    const extraPlaqueLift = (drawRoof ? 26 : 12) + (spec.tower && isTopFloor ? 16 : 0)
+
     return (
       <g key={`iso-bldg-${b.id}-fl-${fl}`}>
-        <polygon points={shadowPts.join(' ')} fill="#0F172A" fillOpacity={0.1} />
-        <polygon points={leftWall.pts} fill={b.color} fillOpacity={0.62} stroke="#0F172A" strokeOpacity={0.28} strokeWidth={1.1} />
-        <polygon points={leftWall.pts} fill="#0F172A" fillOpacity={0.14} />
-        <polygon points={rightWall.pts} fill={b.color} fillOpacity={0.76} stroke="#0F172A" strokeOpacity={0.34} strokeWidth={1.1} />
-        <polygon points={rightWall.pts} fill="#0F172A" fillOpacity={0.28} />
-        <polygon points={topPoly} fill="#FFFFFF" fillOpacity={0.92} />
-        <polygon points={topPoly} fill={b.color} fillOpacity={0.2} stroke={b.color} strokeWidth={2.2} />
+        {mainExtrusion.element}
+        {courtyardNode}
         {roofOverlay}
-        {renderBuildingPlaque(roofCenterX, roofTopY - (drawRoof ? 24 : 12), b.name, b.color, true)}
+        {towerNode}
+        {renderBuildingPlaque(roofCenterX, roofTopY - extraPlaqueLift, b.name, b.color, true)}
       </g>
     )
   }
 
   const renderTopBuilding = (b: CampusBuilding, fl: number) => {
-    const pts = (
-      [
-        [b.x, b.y],
-        [b.x + b.width, b.y],
-        [b.x + b.width, b.y + b.height],
-        [b.x, b.y + b.height],
-      ] as [number, number][]
-    ).map(([x, y]) => project(x, y, fl, 0))
-    const rx = Math.min(...pts.map((p) => p.x))
-    const ry = Math.min(...pts.map((p) => p.y))
-    const rw = Math.max(...pts.map((p) => p.x)) - rx
-    const rh = Math.max(...pts.map((p) => p.y)) - ry
+    const spec = getBuildingShape(b)
+    const polyPts = spec.outer.map(([x, y]) => project(x, y, fl, 0))
+    const polyStr = polyPts.map((p) => `${p.x},${p.y}`).join(' ')
+    const shadowStr = polyPts.map((p) => `${p.x + 4},${p.y + 6}`).join(' ')
+    const rx = Math.min(...polyPts.map((p) => p.x))
+    const ry = Math.min(...polyPts.map((p) => p.y))
+    const rw = Math.max(...polyPts.map((p) => p.x)) - rx
+    const rh = Math.max(...polyPts.map((p) => p.y)) - ry
     const drawRoof = showRoofs && fl === Math.max(1, b.floors)
-    const wide = rw >= rh
-    const rAx = wide ? rx + rw * 0.24 : rx + rw / 2
-    const rAy = wide ? ry + rh / 2 : ry + rh * 0.24
-    const rBx = wide ? rx + rw * 0.76 : rx + rw / 2
-    const rBy = wide ? ry + rh / 2 : ry + rh * 0.76
 
     return (
       <g key={`top-bldg-${b.id}-fl-${fl}`}>
-        <rect x={rx + 4} y={ry + 6} width={rw} height={rh} rx={14} fill="#0F172A" fillOpacity={0.09} />
-        <rect x={rx} y={ry} width={rw} height={rh} rx={14} fill="#FFFFFF" stroke={b.color} strokeWidth={2.2} />
-        <rect x={rx} y={ry} width={rw} height={rh} rx={14} fill={b.color} fillOpacity={0.14} />
-        {drawRoof && (
-          <g pointerEvents="none" aria-hidden="true" opacity={0.45}>
-            <rect
-              x={rx - 4}
-              y={ry - 4}
-              width={rw + 8}
-              height={rh + 8}
-              rx={16}
-              fill="none"
-              stroke={b.color}
-              strokeWidth={1.3}
-              strokeDasharray="6 4"
+        <polygon points={shadowStr} fill="#020617" fillOpacity={isDark ? 0.35 : 0.1} />
+        <polygon
+          points={polyStr}
+          fill={isDark ? '#0F172A' : '#FFFFFF'}
+          stroke={b.color}
+          strokeWidth={2.4}
+          strokeLinejoin="round"
+        />
+        <polygon points={polyStr} fill={b.color} fillOpacity={isDark ? 0.24 : 0.16} strokeLinejoin="round" />
+
+        {spec.courtyard && (() => {
+          const { x: cx, y: cy, w: cw, h: ch } = spec.courtyard
+          const cPts = (
+            [
+              [cx, cy],
+              [cx + cw, cy],
+              [cx + cw, cy + ch],
+              [cx, cy + ch],
+            ] as [number, number][]
+          ).map(([px, py]) => project(px, py, fl, 0))
+          return (
+            <polygon
+              points={cPts.map((p) => `${p.x},${p.y}`).join(' ')}
+              fill={isDark ? '#064E3B' : '#DCFCE7'}
+              fillOpacity={0.75}
+              stroke="#10B981"
+              strokeWidth={1.5}
+              strokeDasharray="4 3"
+              pointerEvents="none"
             />
-            <line x1={rx + 4} y1={ry + 4} x2={rAx} y2={rAy} stroke={b.color} strokeWidth={1.2} />
-            <line x1={rx + rw - 4} y1={ry + 4} x2={wide ? rBx : rAx} y2={wide ? rBy : rAy} stroke={b.color} strokeWidth={1.2} />
-            <line x1={rx + rw - 4} y1={ry + rh - 4} x2={rBx} y2={rBy} stroke={b.color} strokeWidth={1.2} />
-            <line x1={rx + 4} y1={ry + rh - 4} x2={wide ? rAx : rBx} y2={wide ? rAy : rBy} stroke={b.color} strokeWidth={1.2} />
-            <line x1={rAx} y1={rAy} x2={rBx} y2={rBy} stroke={b.color} strokeWidth={2} strokeLinecap="round" />
-            <rect
-              x={rx + rw * 0.26}
-              y={ry + rh * 0.26}
-              width={rw * 0.48}
-              height={rh * 0.48}
-              rx={6}
-              fill="#E0F2FE"
+          )
+        })()}
+
+        {spec.tower && (() => {
+          const { x: tx, y: ty, w: tw, h: th } = spec.tower
+          const tPts = (
+            [
+              [tx, ty],
+              [tx + tw, ty],
+              [tx + tw, ty + th],
+              [tx, ty + th],
+            ] as [number, number][]
+          ).map(([px, py]) => project(px, py, fl, 0))
+          return (
+            <polygon
+              points={tPts.map((p) => `${p.x},${p.y}`).join(' ')}
+              fill={b.color}
               fillOpacity={0.35}
               stroke="#FFFFFF"
-              strokeWidth={1.2}
+              strokeWidth={1.5}
+              pointerEvents="none"
+            />
+          )
+        })()}
+
+        {drawRoof && (
+          <g pointerEvents="none" aria-hidden="true" opacity={0.5}>
+            <line
+              x1={rx + rw * 0.25}
+              y1={ry + rh * 0.45}
+              x2={rx + rw * 0.75}
+              y2={ry + rh * 0.45}
+              stroke={isDark ? '#FFFFFF' : b.color}
+              strokeWidth={2.2}
+              strokeLinecap="round"
             />
           </g>
         )}
+
         {renderBuildingPlaque(rx + rw / 2, ry - 10, b.name, b.color, false)}
       </g>
     )
@@ -956,8 +1407,8 @@ export function CampusMap3D({
                 width={pillW}
                 height={20}
                 rx={10}
-                fill="rgba(255,255,255,0.92)"
-                stroke={item.isNorth ? '#DC2626' : '#94A3B8'}
+                fill={isDark ? 'rgba(15, 23, 42, 0.92)' : 'rgba(255,255,255,0.92)'}
+                stroke={item.isNorth ? '#EF4444' : isDark ? '#475569' : '#94A3B8'}
                 strokeWidth={item.isNorth ? 1.5 : 1.1}
               />
               <text
@@ -966,7 +1417,7 @@ export function CampusMap3D({
                 fontFamily="'Space Grotesk', system-ui, sans-serif"
                 fontSize="10"
                 fontWeight="700"
-                fill={item.isNorth ? '#B91C1C' : '#334155'}
+                fill={item.isNorth ? '#EF4444' : isDark ? '#E2E8F0' : '#334155'}
               >
                 {item.text}
               </text>
@@ -987,8 +1438,25 @@ export function CampusMap3D({
       const dh = deckH + 36
       return (
         <g key={`top-deck-${fl}`}>
-          <rect x={dx + 3} y={dy + 6} width={dw} height={dh} rx={22} fill="#CBD5E1" fillOpacity={0.7} />
-          <rect x={dx} y={dy} width={dw} height={dh} rx={22} fill="#F8FAFC" stroke="#CBD5E1" strokeWidth={1.8} />
+          <rect
+            x={dx + 3}
+            y={dy + 6}
+            width={dw}
+            height={dh}
+            rx={22}
+            fill={isDark ? '#020617' : '#CBD5E1'}
+            fillOpacity={0.75}
+          />
+          <rect
+            x={dx}
+            y={dy}
+            width={dw}
+            height={dh}
+            rx={22}
+            fill={isDark ? '#0F172A' : '#F8FAFC'}
+            stroke={isDark ? '#334155' : '#CBD5E1'}
+            strokeWidth={1.8}
+          />
           <g transform={`translate(${dx + dw / 2}, ${dy - 14})`}>
             <rect x={-105} y={-14} width={210} height={26} rx={13} fill="#0F172A" stroke="#FFFFFF" strokeWidth={1.8} />
             <text
@@ -1058,17 +1526,17 @@ export function CampusMap3D({
           <polygon
             key={`rim-${wi}`}
             points={w.pts}
-            fill={idx === 0 ? '#CBD5E1' : '#94A3B8'}
+            fill={isDark ? (idx === 0 ? '#1E293B' : '#0EA5E9') : idx === 0 ? '#CBD5E1' : '#94A3B8'}
             fillOpacity={idx === 0 ? 0.95 : 0.45}
-            stroke="#94A3B8"
+            stroke={isDark ? '#334155' : '#94A3B8'}
             strokeWidth={0.8}
           />
         ))}
         <polygon
           points={slabTop.map((p) => `${p.x},${p.y}`).join(' ')}
-          fill={idx === 0 ? '#F8FAFC' : '#E0F2FE'}
-          fillOpacity={idx === 0 ? 0.96 : 0.34}
-          stroke={idx === 0 ? '#94A3B8' : '#38BDF8'}
+          fill={isDark ? (idx === 0 ? '#0F172A' : '#082F49') : idx === 0 ? '#F8FAFC' : '#E0F2FE'}
+          fillOpacity={idx === 0 ? 0.96 : 0.38}
+          stroke={idx === 0 ? (isDark ? '#334155' : '#94A3B8') : '#38BDF8'}
           strokeWidth={idx === 0 ? 1.6 : 1.8}
           strokeDasharray={idx === 0 ? undefined : '7 4'}
         />
@@ -1099,16 +1567,61 @@ export function CampusMap3D({
     )
   }
 
+  const renderPavedPlazaTile = (n: CampusNode) => {
+    const p = projectNode(n)
+    const rx = viewMode === 'iso' ? 27 : 22
+    const ry = viewMode === 'iso' ? 15.5 : 22
+    return (
+      <g key={`plaza-${n.id}`} transform={`translate(${p.x}, ${p.y})`} pointerEvents="none" aria-hidden="true">
+        {/* 3D Plaza Drop Shadow */}
+        <ellipse cx={3.5} cy={5.5} rx={rx + 3} ry={ry + 2.5} fill="rgba(2, 6, 23, 0.28)" />
+        {/* 3D Stone Kerb Lip */}
+        <ellipse
+          cx={1}
+          cy={2.2}
+          rx={rx + 2}
+          ry={ry + 1.5}
+          fill={isDark ? '#334155' : '#475569'}
+          stroke={isDark ? '#475569' : '#334155'}
+          strokeWidth={1}
+        />
+        {/* Paved Cobblestone Roundabout Terrace */}
+        <ellipse
+          cx={0}
+          cy={0}
+          rx={rx}
+          ry={ry}
+          fill={isDark ? '#1E293B' : '#94A3B8'}
+          stroke={isDark ? '#64748B' : '#F8FAFC'}
+          strokeWidth={1.8}
+        />
+        {/* Concentric Paver Joint Ring */}
+        <ellipse
+          cx={0}
+          cy={0}
+          rx={rx * 0.65}
+          ry={ry * 0.65}
+          fill="none"
+          stroke={isDark ? '#94A3B8' : '#E2E8F0'}
+          strokeWidth={1.2}
+          strokeDasharray="4 3"
+        />
+      </g>
+    )
+  }
+
   const renderEdge = (e: CampusEdge) => {
     const s = EDGE_STYLE[e.edge_type]
     const nodeA = nodeMap.get(e.from_node_id)!
     const nodeB = nodeMap.get(e.to_node_id)!
     const a = projectNode(nodeA)
     const b = projectNode(nodeB)
-    const hasIncident = edgeIncidents.has(e.id)
-    const dimmed = routeEdgeSet.size > 0 && !routeEdgeSet.has(e.id)
+    const blocked = isEdgeBlocked(e)
+    const warning = isEdgeWarning(e)
+    const hasIncident = blocked || warning || edgeIncidents.has(e.id)
+    const dimmed = routeEdgeSet.size > 0 && !routeEdgeSet.has(e.id) && !blocked
     const covLabel = e.is_covered ? 'techado' : 'descubierto'
-    const baseWidth = 9
+    const baseWidth = 10
 
     const dx = b.x - a.x
     const dy = b.y - a.y
@@ -1121,72 +1634,122 @@ export function CampusMap3D({
     const mx = (a.x + b.x) / 2
     const my = (a.y + b.y) / 2
 
+    const roadBedColor = blocked
+      ? isDark
+        ? '#7F1D1D'
+        : '#FECACA'
+      : warning
+        ? '#FEF08A'
+        : isDark
+          ? s.darkBed
+          : s.bed
+
     return (
-      <g key={e.id} opacity={dimmed ? 0.5 : 0.98}>
+      <g key={e.id} opacity={dimmed ? 0.55 : 0.99}>
         {/* 1. 3D projected ground drop-shadow (+4, +6) */}
         <line
           x1={a.x + 4}
           y1={a.y + 6}
           x2={b.x + 4}
           y2={b.y + 6}
-          stroke="rgba(15, 23, 42, 0.24)"
-          strokeWidth={baseWidth + 5}
+          stroke={isDark ? 'rgba(2, 6, 23, 0.55)' : 'rgba(15, 23, 42, 0.26)'}
+          strokeWidth={baseWidth + 6}
           strokeLinecap="round"
         />
-        {/* 2. 3D raised walkway kerb / thickness bevel (+1.5, +2.5) */}
+        {/* 2. 3D raised concrete kerb / thickness bevel (+1.5, +2.5) */}
         <line
           x1={a.x + 1.5}
           y1={a.y + 2.5}
           x2={b.x + 1.5}
           y2={b.y + 2.5}
-          stroke="#475569"
-          strokeWidth={baseWidth + 3}
-          strokeOpacity={0.55}
+          stroke={blocked ? '#991B1B' : isDark ? '#475569' : '#334155'}
+          strokeWidth={baseWidth + 5}
+          strokeOpacity={0.72}
           strokeLinecap="round"
         />
         {/* Covered sky-blue canopy halo */}
         {e.is_covered && (
           <g>
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#BAE6FD" strokeWidth={17} strokeOpacity={0.78} strokeLinecap="round" />
+            <line
+              x1={a.x}
+              y1={a.y}
+              x2={b.x}
+              y2={b.y}
+              stroke={isDark ? '#0284C7' : '#BAE6FD'}
+              strokeWidth={19}
+              strokeOpacity={isDark ? 0.42 : 0.78}
+              strokeLinecap="round"
+            />
             <line
               x1={a.x}
               y1={a.y}
               x2={b.x}
               y2={b.y}
               stroke="#38BDF8"
-              strokeWidth={13}
-              strokeOpacity={0.42}
+              strokeWidth={15}
+              strokeOpacity={0.45}
               strokeDasharray="6 5"
               strokeLinecap="round"
             />
           </g>
         )}
-        {/* Main walkway surface bed */}
+        {/* 3. Wide Paved Roadbed Surface (Calzada Pavimentada) */}
         <line
           x1={a.x}
           y1={a.y}
           x2={b.x}
           y2={b.y}
-          stroke={hasIncident ? '#FECACA' : s.bed}
-          strokeWidth={baseWidth}
-          strokeOpacity={0.94}
+          stroke={roadBedColor}
+          strokeWidth={baseWidth + 2}
+          strokeOpacity={0.96}
           strokeLinecap="round"
         />
-        {/* Center guide stroke */}
+        {/* 4. Subtle Paved Centerline / Paver Joint Overlay or Blocked Hazard Stripes */}
         <line
           x1={a.x}
           y1={a.y}
           x2={b.x}
           y2={b.y}
-          stroke={hasIncident ? '#DC2626' : s.stroke}
-          strokeWidth={s.width}
-          strokeDasharray={s.dash}
+          stroke={
+            blocked
+              ? '#DC2626'
+              : warning
+                ? '#D97706'
+                : e.edge_type === 'ramp'
+                  ? '#10B981'
+                  : isDark
+                    ? '#94A3B8'
+                    : '#F8FAFC'
+          }
+          strokeWidth={blocked ? 4.2 : e.edge_type === 'ramp' ? 3.2 : 1.5}
+          strokeDasharray={blocked ? '7 5' : s.dash ?? '5 7'}
+          strokeOpacity={blocked ? 0.98 : 0.75}
           strokeLinecap="round"
         >
           <title>{`${s.label} (${e.distance_m} m, ${covLabel}${dz > 0 ? `, desnivel ${dz} m` : ''})${
-            hasIncident ? ' — fuera de servicio' : ''
+            blocked ? ' — ⛔ CERRADO POR INCIDENCIA' : hasIncident ? ' — precaución' : ''
           }`}</title>
         </line>
+
+        {/* Live ⛔ CERRADO badge on blocked paths */}
+        {blocked && (
+          <g transform={`translate(${mx}, ${my})`} pointerEvents="none" role="img" aria-label={`Camino cerrado: ${s.label}`}>
+            <rect
+              x={-35}
+              y={-9}
+              width={70}
+              height={17}
+              rx={8.5}
+              fill="#DC2626"
+              stroke="#FFFFFF"
+              strokeWidth={1.5}
+              filter={shadowFilterUrl}
+            />
+            <text y={3} textAnchor="middle" fontSize="8.5" fontWeight="800" fill="#FFFFFF">
+              ⛔ CERRADO
+            </text>
+          </g>
+        )}
 
         {/* 3D perpendicular stair treads + elevation Δz marker on outdoor/elevation stairs */}
         {isStairs && (
@@ -1255,7 +1818,8 @@ export function CampusMap3D({
         const pb = projectNode(upper)
         const s = EDGE_STYLE[e.edge_type]
         const inc = edgeIncidents.get(e.id)
-        const hasIncident = Boolean(inc)
+        const blocked = isEdgeBlocked(e)
+        const hasIncident = Boolean(inc) || blocked
         const onRoute = routeEdgeSet.has(e.id)
         const isStairs = e.edge_type === 'stairs'
         const lowFl = lower.floor
@@ -1263,8 +1827,12 @@ export function CampusMap3D({
         const shaftTitle = `Conexión vertical (${s.label}): Piso ${lowFl} a Piso ${highFl}${
           hasIncident ? ' — fuera de servicio' : ''
         }`
-        const badgeText = isStairs ? `🪜 ESCALERA P${lowFl}↔P${highFl}` : `🛗 ASCENSOR ${lowFl}↔${highFl}`
-        const badgeW = isStairs ? 104 : 96
+        const badgeText = blocked
+          ? `⛔ ${isStairs ? 'ESCALERA' : 'ASCENSOR'} CERRADO`
+          : isStairs
+            ? `🪜 ESCALERA P${lowFl}↔P${highFl}`
+            : `🛗 ASCENSOR ${lowFl}↔${highFl}`
+        const badgeW = blocked ? 116 : isStairs ? 104 : 96
         const badgeFill = hasIncident ? '#DC2626' : isStairs ? '#EA580C' : '#7C3AED'
 
         if (viewMode === 'iso') {
@@ -1272,7 +1840,6 @@ export function CampusMap3D({
           const my = (pa.y + pb.y) / 2
 
           if (isStairs) {
-            // Two-flight 3D zigzag architectural staircase between Floor 1 and Floor 2
             const landingX = mx + 26
             const landingY = my
             const stairStroke = hasIncident || onRoute ? '#DC2626' : '#EA580C'
@@ -1285,25 +1852,22 @@ export function CampusMap3D({
             return (
               <g key={`stairs-shaft-${e.id}`}>
                 <title>{shaftTitle}</title>
-                {/* 3D shadow behind flights */}
                 <polyline
                   points={`${pa.x + 5},${pa.y + 5} ${landingX + 5},${landingY + 5} ${pb.x + 5},${pb.y + 5}`}
                   fill="none"
-                  stroke="rgba(15, 23, 42, 0.22)"
+                  stroke="rgba(15, 23, 42, 0.26)"
                   strokeWidth={18}
                   strokeLinejoin="round"
                   strokeLinecap="round"
                 />
-                {/* Stair carriage / stringer deck */}
                 <polyline
                   points={`${pa.x},${pa.y} ${landingX},${landingY} ${pb.x},${pb.y}`}
                   fill="none"
-                  stroke={hasIncident ? '#FECACA' : '#FFEDD5'}
+                  stroke={hasIncident ? '#FECACA' : isDark ? '#431407' : '#FFEDD5'}
                   strokeWidth={16}
                   strokeLinejoin="round"
                   strokeLinecap="round"
                 />
-                {/* Left & right diagonal stair stringers / handrails */}
                 <polyline
                   points={`${pa.x - 7},${pa.y} ${landingX - 7},${landingY} ${pb.x - 7},${pb.y}`}
                   fill="none"
@@ -1320,7 +1884,6 @@ export function CampusMap3D({
                   strokeLinejoin="round"
                   strokeLinecap="round"
                 />
-                {/* Elevated handrail highlight */}
                 <polyline
                   points={`${pa.x + 7},${pa.y - 6} ${landingX + 7},${landingY - 6} ${pb.x + 7},${pb.y - 6}`}
                   fill="none"
@@ -1329,7 +1892,6 @@ export function CampusMap3D({
                   strokeLinejoin="round"
                   strokeLinecap="round"
                 />
-                {/* Stepped 3D horizontal treads along both flights */}
                 {flights.map(([p0, p1], fi) =>
                   Array.from({ length: 6 }, (_, ti) => {
                     const t = (ti + 1) / 7
@@ -1349,19 +1911,17 @@ export function CampusMap3D({
                     )
                   })
                 )}
-                {/* Mid-landing platform */}
                 <rect
                   x={landingX - 10}
                   y={landingY - 5}
                   width={20}
                   height={10}
                   rx={3}
-                  fill="#FFF7ED"
+                  fill={isDark ? '#1E293B' : '#FFF7ED'}
                   stroke={stairStroke}
                   strokeWidth={1.6}
                 />
-                {/* Badge */}
-                <g transform={`translate(${landingX + 54}, ${landingY})`} pointerEvents="none" aria-hidden="true">
+                <g transform={`translate(${landingX + 58}, ${landingY})`} pointerEvents="none" aria-hidden="true">
                   <rect
                     x={-badgeW / 2}
                     y={-10}
@@ -1388,26 +1948,22 @@ export function CampusMap3D({
             )
           }
 
-          // Vertical 3D elevator glass shaft with twin guide rails + badge
           const elevStroke = hasIncident || onRoute ? '#DC2626' : s.stroke
           return (
             <g key={`shaft-${e.id}`}>
               <title>{shaftTitle}</title>
-              {/* Translucent vertical elevator column */}
               <line
                 x1={pa.x}
                 y1={pa.y}
                 x2={pb.x}
                 y2={pb.y}
-                stroke={hasIncident ? '#FECACA' : onRoute ? '#FCA5A5' : '#DDD6FE'}
+                stroke={hasIncident ? '#FECACA' : onRoute ? '#FCA5A5' : isDark ? '#4C1D95' : '#DDD6FE'}
                 strokeWidth={14}
                 strokeOpacity={0.55}
                 strokeLinecap="round"
               />
-              {/* Twin vertical rails */}
               <line x1={pa.x - 5} y1={pa.y} x2={pb.x - 5} y2={pb.y} stroke={elevStroke} strokeWidth={1.6} strokeOpacity={0.75} />
               <line x1={pa.x + 5} y1={pa.y} x2={pb.x + 5} y2={pb.y} stroke={elevStroke} strokeWidth={1.6} strokeOpacity={0.75} />
-              {/* Center dashed lift cable */}
               <line
                 x1={pa.x}
                 y1={pa.y}
@@ -1418,8 +1974,7 @@ export function CampusMap3D({
                 strokeDasharray="6 4"
                 strokeLinecap="round"
               />
-              {/* Badge */}
-              <g transform={`translate(${mx - 54}, ${my})`} pointerEvents="none" aria-hidden="true">
+              <g transform={`translate(${mx - 58}, ${my})`} pointerEvents="none" aria-hidden="true">
                 <rect
                   x={-badgeW / 2}
                   y={-10}
@@ -1446,7 +2001,6 @@ export function CampusMap3D({
           )
         }
 
-        // Cenital curved bridge connector (stairs or elevator)
         const midX = (pa.x + pb.x) / 2
         const midY = Math.min(pa.y, pb.y) - (isStairs ? 46 : 74)
         const bezMidX = 0.25 * pa.x + 0.5 * midX + 0.25 * pb.x
@@ -1498,13 +2052,14 @@ export function CampusMap3D({
     const onRoute = routeNodeSet.has(n.id) || isEndpoint
     const isEntrance = n.node_type === 'entrance'
     const isSalida = n.id.includes('salida') || n.name.toLowerCase().includes('salida')
+    const isPlaza = isPavedPlazaNode(n)
     const linkedFloors = verticalLinks.get(n.id) ?? []
     const vertBadge =
       linkedFloors.length > 0
         ? linkedFloors.map((fl) => `${fl > n.floor ? '↑' : '↓'} P${fl}`).join(' ')
         : ''
 
-    const ariaLabel = `${n.name}, ${isSalida ? 'Salida del campus' : NODE_LABEL[n.node_type]}, piso ${n.floor}${
+    const ariaLabel = `${n.name}, ${isSalida ? 'Salida del campus' : isPlaza ? 'Crucero pavimentado' : NODE_LABEL[n.node_type]}, piso ${n.floor}${
       linkedFloors.length > 0
         ? `, conecta con ${linkedFloors.map((fl) => `piso ${fl}`).join(', ')}`
         : ''
@@ -1535,7 +2090,6 @@ export function CampusMap3D({
           </g>
         )}
 
-        {/* Distinctive 3D SALIDA / ACCESO portal badge for campus exits & entrances */}
         {isEntrance && !vertBadge && (
           <g transform={`translate(${p.x},${p.y - (isEndpoint ? 48 : 23)})`} aria-hidden="true" pointerEvents="none">
             <rect
@@ -1590,7 +2144,7 @@ export function CampusMap3D({
             />
           )}
           <circle className="cm3d-ring" r={16} />
-          <NodeGlyph type={n.node_type} onRoute={onRoute} />
+          <NodeGlyph type={n.node_type} onRoute={onRoute} isDark={isDark} />
           <g transform="translate(0, 19)" className={labelClass} aria-hidden="true">
             <rect
               x={-labelW / 2}
@@ -1598,7 +2152,7 @@ export function CampusMap3D({
               width={labelW}
               height={15}
               rx={7.5}
-              fill="rgba(255,255,255,0.94)"
+              fill={isDark ? 'rgba(15, 23, 42, 0.94)' : 'rgba(255, 255, 255, 0.94)'}
               stroke={
                 isOrigin
                   ? '#0EA5E9'
@@ -1608,7 +2162,9 @@ export function CampusMap3D({
                       ? '#DC2626'
                       : isSalida
                         ? '#059669'
-                        : '#CBD5E1'
+                        : isDark
+                          ? '#475569'
+                          : '#CBD5E1'
               }
               strokeWidth={isEndpoint || onRoute || isSalida ? 1.4 : 1}
             />
@@ -1617,7 +2173,7 @@ export function CampusMap3D({
               textAnchor="middle"
               fontSize="9.5"
               fontWeight={isEndpoint || onRoute || isSalida ? '700' : '600'}
-              fill="#0F172A"
+              fill={isDark ? '#F8FAFC' : '#0F172A'}
             >
               {n.name}
             </text>
@@ -1670,16 +2226,42 @@ export function CampusMap3D({
               </button>
             )
           })}
+
+          {/* Live HUD Counter for Available vs Blocked Paved Paths */}
+          <span
+            role="status"
+            aria-live="polite"
+            className={`pill-3d ml-1 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-bold ${
+              isDark
+                ? 'border border-slate-700 bg-slate-800/90 text-emerald-300'
+                : 'border border-emerald-200 bg-emerald-50 text-emerald-900'
+            }`}
+          >
+            <span>{`🛣️ Caminos disponibles: ${pathStats.available} / ${pathStats.total}`}</span>
+            {pathStats.blocked > 0 && (
+              <span className="rounded-full bg-[#DC2626] px-1.5 py-0.5 text-[10px] font-extrabold text-white">
+                {`⛔ ${pathStats.blocked} cerrados`}
+              </span>
+            )}
+          </span>
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
-          <div className="pill-3d inline-flex rounded-full bg-slate-100 p-0.5" role="group" aria-label="Perspectiva de cámara">
+          <div
+            className={`pill-3d inline-flex rounded-full p-0.5 ${isDark ? 'bg-slate-800' : 'bg-slate-100'}`}
+            role="group"
+            aria-label="Perspectiva de cámara"
+          >
             <button
               type="button"
               aria-pressed={viewMode === 'iso'}
               onClick={() => setViewMode('iso')}
               className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-all duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] ${
-                viewMode === 'iso' ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                viewMode === 'iso'
+                  ? 'bg-slate-900 text-white shadow-xs'
+                  : isDark
+                    ? 'text-slate-300 hover:text-white'
+                    : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Vista 3D
@@ -1689,7 +2271,13 @@ export function CampusMap3D({
               aria-pressed={viewMode === 'top'}
               onClick={() => setViewMode('top')}
               className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-all duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] ${
-                viewMode === 'top' ? 'bg-white text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'
+                viewMode === 'top'
+                  ? isDark
+                    ? 'bg-sky-600 text-white shadow-xs'
+                    : 'bg-white text-slate-950 shadow-xs'
+                  : isDark
+                    ? 'text-slate-300 hover:text-white'
+                    : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               Cenital
@@ -1744,8 +2332,14 @@ export function CampusMap3D({
       </div>
 
       {/* Isometric 3D / Cenital Interactive SVG Stage */}
-      <div className="panel-3d relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-b from-slate-100 via-slate-100/90 to-slate-200/75 p-2">
-        <CompassRose angleDeg={northAngleDeg} rotation={rotation} onReset={() => setRotation(0)} />
+      <div
+        className={`panel-3d relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl p-2 ${
+          isDark
+            ? 'bg-gradient-to-b from-[#070B14] via-[#0B1120] to-[#0F172A]'
+            : 'bg-gradient-to-b from-slate-100 via-slate-100/90 to-slate-200/75'
+        }`}
+      >
+        <CompassRose angleDeg={northAngleDeg} rotation={rotation} onReset={() => setRotation(0)} isDark={isDark} />
         <svg
           viewBox={`0 0 ${scene.width} ${scene.height}`}
           className={`h-auto max-h-[680px] w-full select-none${showLabels ? '' : ' cm3d-hide-labels'}`}
@@ -1756,7 +2350,7 @@ export function CampusMap3D({
         >
           <defs>
             <filter id={shadowFilterId} x="-25%" y="-25%" width="150%" height="150%">
-              <feDropShadow dx="0" dy="3" stdDeviation="2.5" floodColor="#0F172A" floodOpacity="0.24" />
+              <feDropShadow dx="0" dy="3" stdDeviation="2.5" floodColor="#0F172A" floodOpacity="0.28" />
             </filter>
           </defs>
 
@@ -1782,6 +2376,9 @@ export function CampusMap3D({
                   viewMode === 'iso' ? renderIsoBuilding(b, fl) : renderTopBuilding(b, fl)
                 )}
 
+                {/* 3D Paved Plaza Roundabouts underneath road intersections */}
+                {flNodes.filter(isPavedPlazaNode).map(renderPavedPlazaTile)}
+
                 {flEdges.map(renderEdge)}
 
                 {flEdges
@@ -1792,7 +2389,7 @@ export function CampusMap3D({
                     const inc = edgeIncidents.get(e.id)!
                     return renderIncidentBadge(
                       (a.x + b.x) / 2,
-                      (a.y + b.y) / 2,
+                      (a.y + b.y) / 2 - 14,
                       `inc-edge-${e.id}`,
                       `Tramo fuera de servicio: ${inc.description}`
                     )
@@ -1819,7 +2416,7 @@ export function CampusMap3D({
                     points={pts}
                     stroke="#EF4444"
                     strokeWidth={14}
-                    opacity={0.26}
+                    opacity={0.28}
                     className={`cm3d-route-glow ${animating ? 'cm3d-play' : ''}`}
                   />
                   <polyline points={pts} stroke="#FFFFFF" strokeWidth={7.5} opacity={0.95} />
@@ -1834,7 +2431,7 @@ export function CampusMap3D({
               {routeVerticals.map((v) =>
                 v.d ? (
                   <g key={v.key}>
-                    <path d={v.d} stroke="#EF4444" strokeWidth={12} opacity={0.22} />
+                    <path d={v.d} stroke="#EF4444" strokeWidth={12} opacity={0.24} />
                     <path d={v.d} stroke="#FFFFFF" strokeWidth={6.5} opacity={0.92} />
                     <path
                       d={v.d}
@@ -1905,9 +2502,9 @@ export function CampusMap3D({
       {/* Compact Tactile 3D Legend */}
       <figcaption
         aria-label="Leyenda del mapa"
-        className="panel-3d flex flex-wrap items-center gap-x-3.5 gap-y-1.5 rounded-2xl px-3.5 py-2 text-xs text-slate-700"
+        className="panel-3d flex flex-wrap items-center gap-x-3.5 gap-y-1.5 rounded-2xl px-3.5 py-2 text-xs text-slate-700 dark:text-slate-200"
       >
-        <span className="inline-flex items-center gap-1.5 font-medium text-slate-900">
+        <span className="inline-flex items-center gap-1.5 font-medium text-slate-900 dark:text-white">
           <svg width="20" height="20" viewBox="-12 -12 24 24" aria-hidden="true">
             <circle r={10} fill="#0EA5E9" stroke="#FFFFFF" strokeWidth={1.5} />
             <path d="M-5,6 C-5,2.5 -2.8,1 0,1 C2.8,1 5,2.5 5,6" fill="#FFFFFF" />
@@ -1916,12 +2513,20 @@ export function CampusMap3D({
           Tu ubicación
         </span>
 
-        <span className="inline-flex items-center gap-1.5 font-medium text-slate-900">
+        <span className="inline-flex items-center gap-1.5 font-medium text-slate-900 dark:text-white">
           <svg width="20" height="20" viewBox="-6 -18 24 22" aria-hidden="true">
-            <line x1={0} y1={2} x2={0} y2={-15} stroke="#0F172A" strokeWidth={2} strokeLinecap="round" />
+            <line x1={0} y1={2} x2={0} y2={-15} stroke={isDark ? '#F8FAFC' : '#0F172A'} strokeWidth={2} strokeLinecap="round" />
             <path d="M1,-15 L14,-10.5 L1,-6 Z" fill="#FACC15" stroke="#0F172A" strokeWidth={1.2} />
           </svg>
           Meta B
+        </span>
+
+        <span className="inline-flex items-center gap-1.5">
+          <svg width="28" height="12" aria-hidden="true">
+            <line x1="3" y1="6" x2="25" y2="6" stroke="#64748B" strokeWidth={8} strokeLinecap="round" />
+            <line x1="3" y1="6" x2="25" y2="6" stroke="#F8FAFC" strokeWidth={1.4} strokeDasharray="4 4" strokeLinecap="round" />
+          </svg>
+          Calzada pavimentada
         </span>
 
         <span className="inline-flex items-center gap-1.5">
@@ -1934,14 +2539,14 @@ export function CampusMap3D({
 
         <span className="inline-flex items-center gap-1.5">
           <svg width="26" height="10" aria-hidden="true">
-            <line x1="2" y1="5" x2="24" y2="5" stroke="#059669" strokeWidth={3} strokeDasharray="8 3 2 3" strokeLinecap="round" />
+            <line x1="2" y1="5" x2="24" y2="5" stroke="#10B981" strokeWidth={3} strokeDasharray="8 3 2 3" strokeLinecap="round" />
           </svg>
           Rampa
         </span>
 
         <span className="inline-flex items-center gap-1.5">
           <svg width="16" height="18" viewBox="-9 -10 18 20" aria-hidden="true">
-            <NodeGlyph type="elevator" r={6} />
+            <NodeGlyph type="elevator" r={6} isDark={isDark} />
           </svg>
           Ascensor
         </span>
@@ -1972,7 +2577,7 @@ export function CampusMap3D({
               !
             </text>
           </svg>
-          Incidencia
+          Cerrado / Incidencia
         </span>
 
         {(routePolylines.length > 0 || routeVerticals.length > 0) && (

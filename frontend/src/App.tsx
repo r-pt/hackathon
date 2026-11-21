@@ -32,6 +32,7 @@ const UTFSM_LON = -71.595
 const CAMPUS_MAX_RANGE_M = 800
 const METERS_PER_DEG_LAT = 111_320
 const METERS_PER_DEG_LON = METERS_PER_DEG_LAT * Math.cos((UTFSM_LAT * Math.PI) / 180)
+const DARK_MODE_STORAGE_KEY = 'rutacampus_dark_mode'
 
 const INITIAL_AVOID_STAIRS =
   import.meta.env.VITE_DEFAULT_AVOID_STAIRS === 'true' ||
@@ -47,17 +48,34 @@ export function App() {
   const [algorithm, setAlgorithm] = useState<SearchAlgorithm>('astar')
   const [floorView, setFloorView] = useState<FloorView>('stacked')
   const [autoVoice, setAutoVoice] = useState<boolean>(true)
+  const [darkMode, setDarkMode] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false
+    return window.localStorage.getItem(DARK_MODE_STORAGE_KEY) === 'true'
+  })
 
   const [gpsRealActive, setGpsRealActive] = useState<boolean>(false)
   const [gpsStatusMessage, setGpsStatusMessage] = useState<string | null>(null)
   const [gpsError, setGpsError] = useState<string | null>(null)
   const [autoWalking, setAutoWalking] = useState<boolean>(false)
   const [reachedGoal, setReachedGoal] = useState<boolean>(false)
+  const [incidentNotice, setIncidentNotice] = useState<string | null>(null)
 
   const [incidentModalOpen, setIncidentModalOpen] = useState<boolean>(false)
   const [authModalOpen, setAuthModalOpen] = useState<boolean>(false)
   const [token, setToken] = useState<string | null>(() => getAuthToken())
   const queryClient = useQueryClient()
+
+  useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.documentElement.classList.toggle('dark', darkMode)
+    }
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(DARK_MODE_STORAGE_KEY, String(darkMode))
+      window.dispatchEvent(
+        new CustomEvent('rutacampus-theme', { detail: { dark: darkMode } }),
+      )
+    }
+  }, [darkMode])
 
   useEffect(() => {
     return subscribeAuthToken((nextToken) => {
@@ -138,6 +156,47 @@ export function App() {
 
     return Array.from(byId.values())
   }, [locationsQuery.data, mapQuery.data])
+
+  const pathAvailability = useMemo(() => {
+    const edges = mapQuery.data?.edges ?? []
+    const activeIncidents = mapQuery.data?.active_incidents ?? []
+    const blockedNodeIds = new Set<string>()
+    const blockedEdgeIds = new Set<string>()
+    const warningEdgeIds = new Set<string>()
+
+    for (const inc of activeIncidents) {
+      if (inc.status !== 'active') continue
+      if (inc.severity === 'blocking') {
+        if (inc.target_type === 'node' && inc.node_id) blockedNodeIds.add(inc.node_id)
+        if (inc.target_type === 'edge' && inc.edge_id) blockedEdgeIds.add(inc.edge_id)
+      } else {
+        if (inc.target_type === 'edge' && inc.edge_id) warningEdgeIds.add(inc.edge_id)
+      }
+    }
+
+    let blockedByIncidentsCount = 0
+    let availableCount = 0
+    for (const edge of edges) {
+      const isIncidentBlocked =
+        blockedEdgeIds.has(edge.id) ||
+        blockedNodeIds.has(edge.from_node_id) ||
+        blockedNodeIds.has(edge.to_node_id)
+      if (isIncidentBlocked) {
+        blockedByIncidentsCount++
+        continue
+      }
+      if (reducedMobility && (!edge.is_accessible || edge.edge_type === 'stairs')) {
+        continue
+      }
+      availableCount++
+    }
+
+    return {
+      totalEdges: edges.length,
+      availableEdges: availableCount,
+      blockedByIncidentsCount,
+    }
+  }, [mapQuery.data?.edges, mapQuery.data?.active_incidents, reducedMobility])
 
   const selectedOriginName = useMemo(() => {
     if (!originId) return null
@@ -439,7 +498,11 @@ export function App() {
   const isGpsLive = gpsRealActive || autoWalking
 
   return (
-    <div className="app-stage-bg flex min-h-screen flex-col bg-[#F1F5F9] text-slate-900">
+    <div
+      className={`app-stage-bg flex min-h-screen flex-col ${
+        darkMode ? 'bg-[#070B14] text-slate-100' : 'bg-[#F1F5F9] text-slate-900'
+      }`}
+    >
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-50 focus:rounded-full focus:border focus:border-sky-400 focus:bg-sky-100 focus:px-4 focus:py-2 focus:font-bold focus:text-sky-950 focus:outline-2 focus:outline-offset-2 focus:outline-[#0EA5E9]"
@@ -447,12 +510,18 @@ export function App() {
         Saltar al contenido principal
       </a>
 
-      <header className="sticky top-0 z-30 border-b border-slate-200/90 bg-white/90 px-4 py-2.5 shadow-sm backdrop-blur-md">
+      <header
+        className={`sticky top-0 z-30 border-b px-4 py-2.5 shadow-sm backdrop-blur-md ${
+          darkMode
+            ? 'border-slate-800 bg-slate-900/90 text-slate-100'
+            : 'border-slate-200/90 bg-white/90 text-slate-900'
+        }`}
+      >
         <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-2.5">
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="flex items-center gap-2">
-              <h1 className="font-display text-lg font-bold tracking-tight text-slate-900">
-                CampusRoute
+              <h1 className="font-display text-lg font-bold tracking-tight">
+                RutaCampus
               </h1>
               <span className="pill-3d rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-800">
                 {mapQuery.data?.campus_name ?? 'UTFSM Casa Central'}
@@ -486,6 +555,25 @@ export function App() {
               </span>
             </div>
 
+            {pathAvailability.totalEdges > 0 && (
+              <button
+                type="button"
+                onClick={() => setIncidentModalOpen(true)}
+                className="pill-3d inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-950 transition-colors hover:bg-emerald-100"
+                title="Ver disponibilidad de caminos pavimentados e incidencias"
+              >
+                <span>
+                  🛣️ {pathAvailability.availableEdges}/{pathAvailability.totalEdges} caminos
+                  disponibles
+                </span>
+                {pathAvailability.blockedByIncidentsCount > 0 && (
+                  <span className="rounded-full bg-[#DC2626] px-1.5 py-0.2 text-[11px] font-bold text-white">
+                    ⛔ {pathAvailability.blockedByIncidentsCount} bloqueados
+                  </span>
+                )}
+              </button>
+            )}
+
             {isGpsLive && (
               <span className="pill-3d inline-flex items-center gap-1.5 rounded-full border border-sky-300 bg-sky-100 px-2.5 py-0.5 text-xs font-bold text-sky-900">
                 <span
@@ -518,9 +606,19 @@ export function App() {
 
             <button
               type="button"
+              onClick={() => setDarkMode((prev) => !prev)}
+              aria-pressed={darkMode}
+              className="btn-3d min-h-9 rounded-full border border-slate-300 bg-white px-3.5 py-1 text-xs font-semibold text-slate-800 transition-all duration-150 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9]"
+            >
+              {darkMode ? '☀️ Modo Claro' : '🌙 Modo Oscuro'}
+            </button>
+
+            <button
+              type="button"
               onClick={() => {
                 void mapQuery.refetch()
                 void locationsQuery.refetch()
+                void routeQuery.refetch()
               }}
               disabled={isRefreshingGraph}
               aria-busy={isRefreshingGraph}
@@ -565,6 +663,28 @@ export function App() {
           </div>
         </div>
       </header>
+
+      {incidentNotice && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="mx-auto mt-3 flex w-full max-w-[1440px] items-center justify-between gap-3 px-4"
+        >
+          <div className="card-3d flex w-full items-center justify-between gap-3 rounded-2xl border border-sky-300 bg-sky-50 px-4 py-2.5 text-xs font-semibold text-sky-950">
+            <span>
+              🛣️ {incidentNotice} ({pathAvailability.availableEdges}/
+              {pathAvailability.totalEdges} caminos disponibles)
+            </span>
+            <button
+              type="button"
+              onClick={() => setIncidentNotice(null)}
+              className="rounded-lg border border-sky-300 bg-white px-2.5 py-1 text-xs font-bold text-sky-900 hover:bg-sky-100"
+            >
+              Entendido
+            </button>
+          </div>
+        </div>
+      )}
 
       <main
         id="main-content"
@@ -664,6 +784,13 @@ export function App() {
         nodes={mapQuery.data?.nodes ?? []}
         edges={mapQuery.data?.edges ?? []}
         isAuthenticated={isAuthenticated}
+        activeIncidents={mapQuery.data?.active_incidents}
+        onIncidentChanged={(summary) => {
+          setIncidentNotice(summary)
+          if (autoVoice) {
+            speakSpanish(summary)
+          }
+        }}
         onRequireAuth={() => {
           setIncidentModalOpen(false)
           setAuthModalOpen(true)

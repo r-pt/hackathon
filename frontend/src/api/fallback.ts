@@ -291,6 +291,54 @@ const NODES: CampusNode[] = [
     is_destination: true,
     landmark: 'Salida peatonal y vehicular sector jardines oriente',
   },
+  {
+    id: 'cc-explanada-espana',
+    name: 'Explanada Monumental Av. España',
+    building: 'Red Vial Pavimentada',
+    floor: 1,
+    node_type: 'corridor',
+    x: 840,
+    y: 865,
+    z: 2,
+    is_destination: true,
+    landmark: 'Explanada pavimentada sur entre Portón Av. España, Frontis Edificio A y Jardines',
+  },
+  {
+    id: 'cc-patio-central',
+    name: 'Plaza Central del Claustro (Cruce Pavimentado)',
+    building: 'Red Vial Pavimentada',
+    floor: 1,
+    node_type: 'corridor',
+    x: 825,
+    y: 615,
+    z: 4,
+    is_destination: true,
+    landmark: 'Plaza pavimentada central entre Edificio A, Claustro Edificio B y Paseo Poniente',
+  },
+  {
+    id: 'cc-paseo-poniente',
+    name: 'Paseo Pavimentado Poniente — Mirador Cancha',
+    building: 'Red Vial Pavimentada',
+    floor: 1,
+    node_type: 'corridor',
+    x: 435,
+    y: 525,
+    z: 4,
+    is_destination: true,
+    landmark: 'Calzada peatonal pavimentada junto a la cancha hacia Informática (Ed. M), Ed. A y Ed. C',
+  },
+  {
+    id: 'cc-terraza-placeres',
+    name: 'Crucero Pavimentado Terraza Placeres',
+    building: 'Red Vial Pavimentada',
+    floor: 1,
+    node_type: 'corridor',
+    x: 825,
+    y: 235,
+    z: 5,
+    is_destination: true,
+    landmark: 'Cruce vial pavimentado norte entre Edificio C, Edificio P y Salida Av. Placeres',
+  },
 ]
 
 const EDGES: CampusEdge[] = [
@@ -514,6 +562,116 @@ const EDGES: CampusEdge[] = [
     is_covered: false,
     bidirectional: true,
   },
+  {
+    id: 'cc-e21',
+    from_node_id: 'cc-acceso-espana',
+    to_node_id: 'cc-explanada-espana',
+    distance_m: 32,
+    base_weight: 1.0,
+    edge_type: 'ramp',
+    is_accessible: true,
+    is_covered: false,
+    bidirectional: true,
+  },
+  {
+    id: 'cc-e22',
+    from_node_id: 'cc-explanada-espana',
+    to_node_id: 'cc-edificio-a-p1',
+    distance_m: 38,
+    base_weight: 1.05,
+    edge_type: 'ramp',
+    is_accessible: true,
+    is_covered: false,
+    bidirectional: true,
+  },
+  {
+    id: 'cc-e23',
+    from_node_id: 'cc-explanada-espana',
+    to_node_id: 'cc-edificio-f',
+    distance_m: 52,
+    base_weight: 1.0,
+    edge_type: 'outdoor',
+    is_accessible: true,
+    is_covered: false,
+    bidirectional: true,
+  },
+  {
+    id: 'cc-e24',
+    from_node_id: 'cc-edificio-a-p1',
+    to_node_id: 'cc-patio-central',
+    distance_m: 26,
+    base_weight: 1.0,
+    edge_type: 'corridor',
+    is_accessible: true,
+    is_covered: true,
+    bidirectional: true,
+  },
+  {
+    id: 'cc-e25',
+    from_node_id: 'cc-patio-central',
+    to_node_id: 'cc-edificio-b-p1',
+    distance_m: 28,
+    base_weight: 1.0,
+    edge_type: 'corridor',
+    is_accessible: true,
+    is_covered: true,
+    bidirectional: true,
+  },
+  {
+    id: 'cc-e26',
+    from_node_id: 'cc-patio-central',
+    to_node_id: 'cc-paseo-poniente',
+    distance_m: 48,
+    base_weight: 1.0,
+    edge_type: 'outdoor',
+    is_accessible: true,
+    is_covered: false,
+    bidirectional: true,
+  },
+  {
+    id: 'cc-e27',
+    from_node_id: 'cc-paseo-poniente',
+    to_node_id: 'cc-edificio-m',
+    distance_m: 44,
+    base_weight: 1.0,
+    edge_type: 'outdoor',
+    is_accessible: true,
+    is_covered: false,
+    bidirectional: true,
+  },
+  {
+    id: 'cc-e28',
+    from_node_id: 'cc-paseo-poniente',
+    to_node_id: 'cc-edificio-c-p1',
+    distance_m: 54,
+    base_weight: 1.05,
+    edge_type: 'ramp',
+    is_accessible: true,
+    is_covered: false,
+    bidirectional: true,
+  },
+  {
+    id: 'cc-e29',
+    from_node_id: 'cc-edificio-c-p1',
+    to_node_id: 'cc-terraza-placeres',
+    distance_m: 24,
+    base_weight: 1.0,
+    edge_type: 'outdoor',
+    is_accessible: true,
+    is_covered: false,
+    bidirectional: true,
+  },
+  {
+    id: 'cc-e30',
+    from_node_id: 'cc-terraza-placeres',
+    to_node_id: 'cc-salida-placeres',
+    distance_m: 24,
+    base_weight: 1.0,
+    edge_type: 'ramp',
+    is_accessible: true,
+    is_covered: false,
+    bidirectional: true,
+  },
 ]
 
 let fallbackIncidents: Incident[] = [
@@ -532,6 +690,19 @@ let fallbackIncidents: Incident[] = [
 ]
 
 let nextIncidentNum = 2
+
+export function syncFallbackIncident(incident: Incident): void {
+  const idx = fallbackIncidents.findIndex((i) => i.id === incident.id)
+  if (idx >= 0) {
+    fallbackIncidents = fallbackIncidents.map((item, i) => (i === idx ? incident : item))
+  } else {
+    fallbackIncidents = [incident, ...fallbackIncidents]
+  }
+}
+
+export function getFallbackIncidents(): Incident[] {
+  return [...fallbackIncidents]
+}
 
 let fallbackProfile: UserProfile = {
   id: '00000000-0000-0000-0000-000000000001',

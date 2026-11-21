@@ -191,16 +191,25 @@ export const apiClient = {
   },
   getIncidents: (status: 'active' | 'resolved' | 'all' = 'active') =>
     apiFetch<IncidentsListResponse>(`/api/v1/incidents?status=${encodeURIComponent(status)}`),
-  createIncident: (data: CreateIncidentRequest) =>
-    apiFetch<Incident>('/api/v1/incidents', {
+  createIncident: async (data: CreateIncidentRequest) => {
+    const created = await apiFetch<Incident>('/api/v1/incidents', {
       method: 'POST',
       body: JSON.stringify(data),
-    }),
-  updateIncident: (incidentId: string, data: UpdateIncidentRequest) =>
-    apiFetch<Incident>(`/api/v1/incidents/${encodeURIComponent(incidentId)}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    }),
+    })
+    void import('@/api/fallback').then((m) => m.syncFallbackIncident(created))
+    return created
+  },
+  updateIncident: async (incidentId: string, data: UpdateIncidentRequest) => {
+    const updated = await apiFetch<Incident>(
+      `/api/v1/incidents/${encodeURIComponent(incidentId)}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify(data),
+      },
+    )
+    void import('@/api/fallback').then((m) => m.syncFallbackIncident(updated))
+    return updated
+  },
   calculateRoute: (data: CalculateRouteRequest) =>
     apiFetch<CalculateRouteResponse>('/api/v1/routes/calculate', {
       method: 'POST',

@@ -74,10 +74,23 @@ export function useCreateIncident(): UseMutationResult<
   const queryClient = useQueryClient()
   return useMutation<Incident, ApiError, CreateIncidentRequest>({
     mutationFn: (data) => apiClient.createIncident(data),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['campusMap'] })
-      void queryClient.invalidateQueries({ queryKey: ['incidents'] })
-      void queryClient.invalidateQueries({ queryKey: ['route'] })
+    onSuccess: async (created) => {
+      queryClient.setQueriesData<CampusMapResponse>({ queryKey: ['campusMap'] }, (old) => {
+        if (!old) return old
+        const filtered = old.active_incidents.filter((i) => i.id !== created.id)
+        return {
+          ...old,
+          active_incidents:
+            created.status === 'active' ? [created, ...filtered] : filtered,
+        }
+      })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['campusMap'] }),
+        queryClient.invalidateQueries({ queryKey: ['incidents'] }),
+        queryClient.invalidateQueries({ queryKey: ['route'] }),
+        queryClient.refetchQueries({ queryKey: ['campusMap'] }),
+        queryClient.refetchQueries({ queryKey: ['route'] }),
+      ])
     },
   })
 }
@@ -92,10 +105,23 @@ export function useUpdateIncident(): UseMutationResult<
   const queryClient = useQueryClient()
   return useMutation<Incident, ApiError, UpdateIncidentVariables>({
     mutationFn: ({ id, ...payload }) => apiClient.updateIncident(id, payload),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['campusMap'] })
-      void queryClient.invalidateQueries({ queryKey: ['incidents'] })
-      void queryClient.invalidateQueries({ queryKey: ['route'] })
+    onSuccess: async (updated) => {
+      queryClient.setQueriesData<CampusMapResponse>({ queryKey: ['campusMap'] }, (old) => {
+        if (!old) return old
+        const filtered = old.active_incidents.filter((i) => i.id !== updated.id)
+        return {
+          ...old,
+          active_incidents:
+            updated.status === 'active' ? [updated, ...filtered] : filtered,
+        }
+      })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['campusMap'] }),
+        queryClient.invalidateQueries({ queryKey: ['incidents'] }),
+        queryClient.invalidateQueries({ queryKey: ['route'] }),
+        queryClient.refetchQueries({ queryKey: ['campusMap'] }),
+        queryClient.refetchQueries({ queryKey: ['route'] }),
+      ])
     },
   })
 }
