@@ -725,7 +725,7 @@ export function App() {
             : 'border-slate-200/90 bg-white/90 text-slate-900'
         }`}
       >
-        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-2.5">
+        <div className="mx-auto flex max-w-[1800px] flex-wrap items-center justify-between gap-2.5">
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="flex items-center gap-2">
               <h1 className="font-display text-lg font-bold tracking-tight text-slate-900 dark:text-white">
@@ -894,7 +894,7 @@ export function App() {
       {(evacuationMode || evacuationError) && (
         <div
           role="alert"
-          className="mx-auto mt-3 flex w-full max-w-[1440px] items-center justify-between gap-3 px-4"
+          className="mx-auto mt-3 flex w-full max-w-[1800px] items-center justify-between gap-3 px-3 sm:px-5"
         >
           <div className="card-3d flex w-full flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-red-500 bg-red-50 px-4 py-3 text-xs text-red-950 dark:border-red-700 dark:bg-red-950/80 dark:text-red-100">
             <div className="grid gap-0.5">
@@ -952,7 +952,7 @@ export function App() {
         <div
           role="status"
           aria-live="polite"
-          className="mx-auto mt-3 flex w-full max-w-[1440px] items-center justify-between gap-3 px-4"
+          className="mx-auto mt-3 flex w-full max-w-[1800px] items-center justify-between gap-3 px-3 sm:px-5"
         >
           <div className="card-3d flex w-full items-center justify-between gap-3 rounded-2xl border border-sky-300 bg-sky-50 px-4 py-2.5 text-xs font-semibold text-sky-950 dark:border-sky-800 dark:bg-sky-950/70 dark:text-sky-100">
             <span>
@@ -972,11 +972,11 @@ export function App() {
 
       <main
         id="main-content"
-        className="mx-auto grid w-full max-w-[1440px] flex-1 grid-cols-1 gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_22.5rem]"
+        className="mx-auto flex w-full max-w-[1800px] flex-1 flex-col gap-4 px-3 py-3 sm:px-5"
       >
         <section
           aria-label="Mapa interactivo del campus"
-          className="panel-3d flex min-h-[560px] flex-col rounded-3xl border border-slate-200/90 bg-white p-3 dark:border-slate-700/90 dark:bg-slate-900 lg:min-h-[calc(100vh-6.5rem)]"
+          className="panel-3d flex w-full flex-col rounded-3xl border border-slate-200/90 bg-white p-2.5 sm:p-3 dark:border-slate-700/90 dark:bg-slate-900"
         >
           {mapQuery.isLoading && (
             <div
@@ -1014,7 +1014,7 @@ export function App() {
 
         <aside
           aria-label="Panel de control e indicaciones de ruta"
-          className="flex flex-col gap-3.5"
+          className="grid w-full grid-cols-1 items-start gap-4 lg:grid-cols-3"
         >
           <div className="panel-3d rounded-2xl border border-slate-200/90 bg-white p-4 dark:border-slate-700/90 dark:bg-slate-900">
             <h2 className="font-display mb-2.5 text-sm font-bold text-slate-900 dark:text-white">

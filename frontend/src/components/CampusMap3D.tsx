@@ -24,8 +24,8 @@ interface CampusMap3DProps {
 
 const ISO_FLOOR_STEP = 420
 const BLDG_EXTRUDE = 34
-const MIN_ZOOM = 0.75
-const MAX_ZOOM = 3.0
+const MIN_ZOOM = 0.6
+const MAX_ZOOM = 3.5
 const ZOOM_STEP = 0.25
 
 function clampPan(
@@ -34,9 +34,9 @@ function clampPan(
   sceneW: number,
   sceneH: number
 ): { x: number; y: number } {
-  if (zoom <= 1) return { x: 0, y: 0 }
-  const maxPanX = (sceneW - sceneW / zoom) / 2 + sceneW * 0.2
-  const maxPanY = (sceneH - sceneH / zoom) / 2 + sceneH * 0.2
+  if (zoom <= 0.75) return { x: 0, y: 0 }
+  const maxPanX = Math.max(sceneW * 0.25, (sceneW - sceneW / Math.max(1, zoom)) / 2 + sceneW * 0.45)
+  const maxPanY = Math.max(sceneH * 0.25, (sceneH - sceneH / Math.max(1, zoom)) / 2 + sceneH * 0.45)
   return {
     x: Math.max(-maxPanX, Math.min(maxPanX, nextPan.x)),
     y: Math.max(-maxPanY, Math.min(maxPanY, nextPan.y)),
@@ -915,7 +915,7 @@ export function CampusMap3D({
   const applyZoom = useCallback((nextZoom: number) => {
     const clamped = Math.round(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, nextZoom)) * 100) / 100
     setZoom(clamped)
-    if (clamped <= 1) {
+    if (clamped <= 0.75) {
       setPan({ x: 0, y: 0 })
     } else {
       const { w, h } = sceneSizeRef.current
@@ -936,7 +936,7 @@ export function CampusMap3D({
       const delta = ev.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP
       setZoom((prev) => {
         const next = Math.round(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, prev + delta)) * 100) / 100
-        if (next <= 1) {
+        if (next <= 0.75) {
           setPan({ x: 0, y: 0 })
         } else {
           const { w, h } = sceneSizeRef.current
@@ -996,7 +996,7 @@ export function CampusMap3D({
 
     if (!drag.moved) {
       if (Math.hypot(dxPx, dyPx) < 5) return
-      if (zoom <= 1) return
+      if (zoom <= 0.75) return
       drag.moved = true
       setIsDragging(true)
       try {
@@ -1009,11 +1009,10 @@ export function CampusMap3D({
     const svgEl = svgRef.current
     if (!svgEl) return
     const rect = svgEl.getBoundingClientRect()
-    const scaleX = viewW / Math.max(1, rect.width)
-    const scaleY = viewH / Math.max(1, rect.height)
+    const scale = Math.max(viewW / Math.max(1, rect.width), viewH / Math.max(1, rect.height))
     setPan(
       clampPan(
-        { x: drag.startPanX - dxPx * scaleX, y: drag.startPanY - dyPx * scaleY },
+        { x: drag.startPanX - dxPx * scale, y: drag.startPanY - dyPx * scale },
         zoom,
         scene.width,
         scene.height
@@ -2843,8 +2842,8 @@ export function CampusMap3D({
         onPointerUp={handleStagePointerUp}
         onPointerCancel={handleStagePointerUp}
         style={{ touchAction: zoom > 1 ? 'none' : 'pan-y' }}
-        className={`panel-3d relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl p-2 ${
-          zoom > 1 ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''
+        className={`panel-3d relative flex h-[72vh] min-h-[520px] w-full items-center justify-center overflow-hidden rounded-2xl p-1.5 lg:h-[78vh] ${
+          zoom > 0.75 ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''
         } ${
           isDark
             ? 'bg-gradient-to-b from-[#070B14] via-[#0B1120] to-[#0F172A]'
@@ -2894,7 +2893,8 @@ export function CampusMap3D({
         <svg
           ref={svgRef}
           viewBox={`${viewX} ${viewY} ${viewW} ${viewH}`}
-          className={`h-auto max-h-[680px] w-full select-none${showLabels ? '' : ' cm3d-hide-labels'}`}
+          preserveAspectRatio="xMidYMid meet"
+          className={`h-full w-full select-none${showLabels ? '' : ' cm3d-hide-labels'}`}
           role="group"
           aria-label={`Mapa ${viewMode === 'iso' ? 'isométrico 3D' : 'cenital'} de ${map.campus_name}, ${
             stacked ? `todos los pisos (${floorsList.length} niveles)` : `piso ${activeFloorView}`
