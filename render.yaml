@@ -1,0 +1,23 @@
+services:
+  - type: web
+    name: campusroute-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      - key: CORS_ORIGINS
+        value: http://localhost:5173
+      - key: CAMPUS_LAT
+        value: "-33.0344"
+      - key: CAMPUS_LON
+        value: "-71.5950"

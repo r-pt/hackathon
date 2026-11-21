@@ -1,0 +1,1357 @@
+openapi: 3.1.0
+info:
+  title: CampusRoute — Optimizador de Rutas Universitarias Accesibles API
+  version: 1.0.0
+  description: |
+    Contrato oficial (Source of Truth) para la hackathon de 6 horas.
+    - **Persona A**: `/health`, `/auth/*`, `/campus/*`, `/incidents/*`
+    - **Persona B**: `/routes/calculate` (grafo ponderado con A* / Dijkstra), `/external/weather` (Open-Meteo)
+    - **Persona C**: Frontend con mapa 2.5D isométrico SVG contra Prism (`VITE_API_URL=http://localhost:4010`) hasta Hora 4, luego backend real.
+
+servers:
+  - url: http://localhost:8000
+    description: Backend local (FastAPI)
+  - url: http://localhost:4010
+    description: Mock local (Prism)
+
+tags:
+  - name: Health
+    description: Estado del servicio y conexión a Supabase (Persona A)
+  - name: Auth
+    description: Perfil y preferencias de movilidad del estudiante (Persona A)
+  - name: Campus
+    description: Grafo 2.5D/3D básico (edificios, nodos x/y/z, aristas ponderadas) y destinos (Persona A)
+  - name: Incidents
+    description: Conflictos activos en el campus como ascensores o escaleras descompuestos (Persona A)
+  - name: Routes
+    description: Motor de búsqueda en grafos con pesos (A* / Dijkstra), accesibilidad y evasión de conflictos (Persona B)
+  - name: External
+    description: Clima en vivo del campus vía Open-Meteo (Persona B)
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Token JWT emitido por Supabase Auth.
+
+  schemas:
+    ErrorCode:
+      type: string
+      enum:
+        - VALIDATION_ERROR
+        - UNAUTHORIZED
+        - NOT_FOUND
+        - NO_ACCESSIBLE_ROUTE
+        - ROUTE_NOT_FOUND
+        - EXTERNAL_SERVICE_ERROR
+        - INTERNAL_ERROR
+
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              $ref: '#/components/schemas/ErrorCode'
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+
+    HealthResponse:
+      type: object
+      required: [status, database, timestamp]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+          example: ok
+        database:
+          type: string
+          enum: [connected, disconnected]
+          example: connected
+        timestamp:
+          type: string
+          format: date-time
+          example: '2026-11-21T12:00:00Z'
+
+    UserProfile:
+      type: object
+      required: [id, email, full_name, reduced_mobility, prefer_covered]
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: '11111111-2222-3333-4444-555555555555'
+        email:
+          type: string
+          format: email
+          example: 'estudiante.demo@uni.edu'
+        full_name:
+          type: string
+          example: 'Ana Pérez'
+        reduced_mobility:
+          type: boolean
+          example: true
+        prefer_covered:
+          type: boolean
+          example: false
+
+    UpdatePreferencesRequest:
+      type: object
+      properties:
+        reduced_mobility:
+          type: boolean
+          example: true
+        prefer_covered:
+          type: boolean
+          example: true
+
+    NodeType:
+      type: string
+      enum: [entrance, room, corridor, elevator, stairs, ramp]
+
+    EdgeType:
+      type: string
+      enum: [corridor, stairs, elevator, ramp, outdoor]
+
+    ConflictType:
+      type: string
+      enum:
+        - elevator_broken
+        - stairs_blocked
+        - ramp_obstructed
+        - corridor_closed
+        - crowd_congestion
+
+    IncidentSeverity:
+      type: string
+      enum: [blocking, warning]
+
+    IncidentStatus:
+      type: string
+      enum: [active, resolved]
+
+    SearchAlgorithm:
+      type: string
+      enum: [astar, dijkstra]
+
+    CampusBuilding:
+      type: object
+      description: Geometría básica para renderizar bloques 2.5D/isométricos en el mapa simulador.
+      required: [id, name, x, y, width, height, floors, color]
+      properties:
+        id:
+          type: string
+          example: 'bld-a'
+        name:
+          type: string
+          example: 'Edificio A (Ingeniería)'
+        x:
+          type: integer
+          example: 140
+        y:
+          type: integer
+          example: 110
+        width:
+          type: integer
+          example: 340
+        height:
+          type: integer
+          example: 230
+        floors:
+          type: integer
+          minimum: 1
+          example: 2
+        color:
+          type: string
+          example: '#3b82f6'
+
+    CampusNode:
+      type: object
+      required: [id, name, building, floor, node_type, x, y, z, is_destination, landmark]
+      properties:
+        id:
+          type: string
+          example: 'n-entrada-sur'
+        name:
+          type: string
+          example: 'Entrada Principal Sur'
+        building:
+          type: string
+          example: 'Exterior'
+        floor:
+          type: integer
+          minimum: 1
+          example: 1
+        node_type:
+          $ref: '#/components/schemas/NodeType'
+        x:
+          type: integer
+          description: Coordenada horizontal del plano del campus (metros/unidades SVG).
+          example: 120
+        y:
+          type: integer
+          description: Coordenada de profundidad del plano del campus (metros/unidades SVG).
+          example: 540
+        z:
+          type: integer
+          description: Elevación vertical en metros para proyección 2.5D/3D y heurística A* (0 = Piso 1, 4 = Piso 2).
+          example: 0
+        is_destination:
+          type: boolean
+          example: true
+        landmark:
+          type: string
+          example: 'Frente a la garita y parada de bus'
+
+    CampusEdge:
+      type: object
+      required:
+        - id
+        - from_node_id
+        - to_node_id
+        - distance_m
+        - base_weight
+        - edge_type
+        - is_accessible
+        - is_covered
+        - bidirectional
+      properties:
+        id:
+          type: string
+          example: 'e-1'
+        from_node_id:
+          type: string
+          example: 'n-entrada-sur'
+        to_node_id:
+          type: string
+          example: 'n-patio-central'
+        distance_m:
+          type: integer
+          minimum: 1
+          example: 45
+        base_weight:
+          type: number
+          format: float
+          minimum: 0.1
+          description: Multiplicador de costo base del tramo (ej. 1.0 pasillo plano, 1.15 rampa, 1.3 ascensor por espera, 1.4 escalera).
+          example: 1.0
+        edge_type:
+          $ref: '#/components/schemas/EdgeType'
+        is_accessible:
+          type: boolean
+          example: true
+        is_covered:
+          type: boolean
+          example: false
+        bidirectional:
+          type: boolean
+          example: true
+
+    Incident:
+      type: object
+      required:
+        - id
+        - target_type
+        - conflict_type
+        - severity
+        - status
+        - description
+        - reported_at
+      properties:
+        id:
+          type: string
+          example: 'inc-101'
+        target_type:
+          type: string
+          enum: [node, edge]
+          example: node
+        node_id:
+          type: [string, 'null']
+          example: 'n-ascensor-a-p1'
+        edge_id:
+          type: [string, 'null']
+          example: null
+        conflict_type:
+          $ref: '#/components/schemas/ConflictType'
+        severity:
+          $ref: '#/components/schemas/IncidentSeverity'
+        status:
+          $ref: '#/components/schemas/IncidentStatus'
+        description:
+          type: string
+          example: 'Ascensor Edificio A fuera de servicio por mantenimiento'
+        reported_at:
+          type: string
+          format: date-time
+          example: '2026-11-21T10:15:00Z'
+        resolved_at:
+          type: [string, 'null']
+          format: date-time
+          example: null
+
+    CreateIncidentRequest:
+      type: object
+      required: [target_type, conflict_type, severity, description]
+      properties:
+        target_type:
+          type: string
+          enum: [node, edge]
+          example: node
+        node_id:
+          type: [string, 'null']
+          example: 'n-ascensor-a-p1'
+        edge_id:
+          type: [string, 'null']
+          example: null
+        conflict_type:
+          $ref: '#/components/schemas/ConflictType'
+        severity:
+          $ref: '#/components/schemas/IncidentSeverity'
+        description:
+          type: string
+          minLength: 3
+          maxLength: 280
+          example: 'Ascensor trabado en el primer piso'
+
+    UpdateIncidentRequest:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/IncidentStatus'
+        severity:
+          $ref: '#/components/schemas/IncidentSeverity'
+        description:
+          type: string
+          minLength: 3
+          maxLength: 280
+          example: 'Reparado por mantenimiento'
+
+    CampusMapResponse:
+      type: object
+      required: [campus_name, viewbox, floors, buildings, nodes, edges, active_incidents]
+      properties:
+        campus_name:
+          type: string
+          example: 'Campus Central Simulado'
+        viewbox:
+          type: object
+          required: [width, height]
+          properties:
+            width:
+              type: integer
+              example: 1000
+            height:
+              type: integer
+              example: 640
+        floors:
+          type: array
+          items:
+            type: integer
+          example: [1, 2]
+        buildings:
+          type: array
+          items:
+            $ref: '#/components/schemas/CampusBuilding'
+        nodes:
+          type: array
+          items:
+            $ref: '#/components/schemas/CampusNode'
+        edges:
+          type: array
+          items:
+            $ref: '#/components/schemas/CampusEdge'
+        active_incidents:
+          type: array
+          items:
+            $ref: '#/components/schemas/Incident'
+
+    LocationItem:
+      type: object
+      required: [id, name, building, floor, node_type, landmark]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        building:
+          type: string
+        floor:
+          type: integer
+        node_type:
+          $ref: '#/components/schemas/NodeType'
+        landmark:
+          type: string
+
+    LocationsResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/LocationItem'
+
+    IncidentsListResponse:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/Incident'
+
+    CalculateRouteRequest:
+      type: object
+      required: [origin_node_id, destination_node_id, reduced_mobility]
+      properties:
+        origin_node_id:
+          type: string
+          example: 'n-entrada-sur'
+        destination_node_id:
+          type: string
+          example: 'n-aula-204'
+        reduced_mobility:
+          type: boolean
+          default: false
+          example: true
+        prefer_covered:
+          type: boolean
+          default: false
+          example: false
+        use_live_weather:
+          type: boolean
+          default: true
+          example: true
+        simulate_rain:
+          type: boolean
+          default: false
+          description: Permite simular lluvia durante la demo para activar penalización sobre tramos exteriores (is_covered=false).
+          example: false
+        algorithm:
+          $ref: '#/components/schemas/SearchAlgorithm'
+          default: astar
+        simulated_blocked_node_ids:
+          type: array
+          items:
+            type: string
+          default: []
+          example: []
+        simulated_blocked_edge_ids:
+          type: array
+          items:
+            type: string
+          default: []
+          example: []
+
+    RouteStep:
+      type: object
+      required: [order, from_node_id, to_node_id, floor, edge_type, distance_m, edge_weight, instruction]
+      properties:
+        order:
+          type: integer
+          example: 1
+        from_node_id:
+          type: string
+        to_node_id:
+          type: string
+        floor:
+          type: integer
+        edge_type:
+          $ref: '#/components/schemas/EdgeType'
+        distance_m:
+          type: integer
+        edge_weight:
+          type: number
+          format: float
+          description: Costo efectivo aplicado por el grafo ponderado en este tramo.
+        instruction:
+          type: string
+
+    AvoidedConflict:
+      type: object
+      required: [incident_id, target_name, conflict_type, reason]
+      properties:
+        incident_id:
+          type: string
+        target_name:
+          type: string
+        conflict_type:
+          $ref: '#/components/schemas/ConflictType'
+        reason:
+          type: string
+
+    RouteMetrics:
+      type: object
+      required:
+        - total_distance_m
+        - estimated_time_min
+        - floors_traversed
+        - uses_elevator
+        - uses_ramp
+        - uses_stairs
+      properties:
+        total_distance_m:
+          type: integer
+          example: 190
+        estimated_time_min:
+          type: number
+          format: float
+          example: 3.6
+        floors_traversed:
+          type: array
+          items:
+            type: integer
+          example: [1, 2]
+        uses_elevator:
+          type: boolean
+          example: true
+        uses_ramp:
+          type: boolean
+          example: true
+        uses_stairs:
+          type: boolean
+          example: false
+
+    GraphStats:
+      type: object
+      description: Telemetría del algoritmo de búsqueda en grafo ponderado para mostrar en UI/demo.
+      required: [algorithm_used, total_weight, nodes_explored]
+      properties:
+        algorithm_used:
+          $ref: '#/components/schemas/SearchAlgorithm'
+          example: astar
+        total_weight:
+          type: number
+          format: float
+          example: 202.0
+        nodes_explored:
+          type: integer
+          example: 9
+
+    CalculateRouteResponse:
+      type: object
+      required:
+        - origin_node_id
+        - destination_node_id
+        - reduced_mobility
+        - accessibility_verified
+        - weather_applied
+        - metrics
+        - graph_stats
+        - path_node_ids
+        - path_edge_ids
+        - steps
+        - avoided_conflicts
+      properties:
+        origin_node_id:
+          type: string
+        destination_node_id:
+          type: string
+        reduced_mobility:
+          type: boolean
+        accessibility_verified:
+          type: boolean
+        weather_applied:
+          type: object
+          required: [condition, rain_avoidance_active]
+          properties:
+            condition:
+              type: string
+              enum: [clear, cloudy, rain, storm, unknown]
+            rain_avoidance_active:
+              type: boolean
+        metrics:
+          $ref: '#/components/schemas/RouteMetrics'
+        graph_stats:
+          $ref: '#/components/schemas/GraphStats'
+        path_node_ids:
+          type: array
+          items:
+            type: string
+        path_edge_ids:
+          type: array
+          items:
+            type: string
+        steps:
+          type: array
+          items:
+            $ref: '#/components/schemas/RouteStep'
+        avoided_conflicts:
+          type: array
+          items:
+            $ref: '#/components/schemas/AvoidedConflict'
+
+    WeatherResponse:
+      type: object
+      required:
+        - temperature_c
+        - precipitation_mm
+        - condition
+        - rain_alert
+        - source
+        - fallback_used
+        - fetched_at
+      properties:
+        temperature_c:
+          type: number
+          format: float
+          example: 21.4
+        precipitation_mm:
+          type: number
+          format: float
+          example: 0.0
+        condition:
+          type: string
+          enum: [clear, cloudy, rain, storm, unknown]
+          example: clear
+        rain_alert:
+          type: boolean
+          example: false
+        source:
+          type: string
+          example: open-meteo
+        fallback_used:
+          type: boolean
+          example: false
+        fetched_at:
+          type: string
+          format: date-time
+          example: '2026-11-21T12:00:00Z'
+
+paths:
+  /api/v1/health:
+    get:
+      tags: [Health]
+      summary: Estado del servidor y conexión con Supabase
+      operationId: getHealth
+      responses:
+        '200':
+          description: Servicio operativo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /api/v1/auth/me:
+    get:
+      tags: [Auth]
+      summary: Obtener perfil y preferencias del estudiante autenticado
+      operationId: getCurrentUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Perfil del estudiante
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          description: Token faltante o inválido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/auth/preferences:
+    patch:
+      tags: [Auth]
+      summary: Actualizar preferencias persistentes de movilidad
+      operationId: updatePreferences
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePreferencesRequest'
+      responses:
+        '200':
+          description: Preferencias actualizadas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '400':
+          description: Datos inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/campus/map:
+    get:
+      tags: [Campus]
+      summary: Obtener el grafo 2.5D completo del campus simulado e incidencias activas
+      operationId: getCampusMap
+      parameters:
+        - name: floor
+          in: query
+          required: false
+          description: Filtrar nodos y aristas por piso específico (1 o 2)
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Mapa 2.5D del campus simulado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CampusMapResponse'
+              example:
+                campus_name: 'Campus Central Simulado'
+                viewbox:
+                  width: 1000
+                  height: 640
+                floors: [1, 2]
+                buildings:
+                  - id: 'bld-a'
+                    name: 'Edificio A (Ingeniería)'
+                    x: 150
+                    y: 110
+                    width: 400
+                    height: 210
+                    floors: 2
+                    color: '#3b82f6'
+                  - id: 'bld-b'
+                    name: 'Edificio B (Biblioteca y Labs)'
+                    x: 610
+                    y: 130
+                    width: 280
+                    height: 410
+                    floors: 2
+                    color: '#10b981'
+                nodes:
+                  - id: 'n-entrada-sur'
+                    name: 'Entrada Principal Sur'
+                    building: 'Exterior'
+                    floor: 1
+                    node_type: 'entrance'
+                    x: 120
+                    y: 540
+                    z: 0
+                    is_destination: true
+                    landmark: 'Frente a la garita y parada de bus'
+                  - id: 'n-patio-central'
+                    name: 'Patio Central'
+                    building: 'Exterior'
+                    floor: 1
+                    node_type: 'corridor'
+                    x: 340
+                    y: 440
+                    z: 0
+                    is_destination: false
+                    landmark: 'Explanada con fuente central'
+                  - id: 'n-biblioteca'
+                    name: 'Biblioteca Central'
+                    building: 'Edificio B'
+                    floor: 1
+                    node_type: 'room'
+                    x: 680
+                    y: 490
+                    z: 0
+                    is_destination: true
+                    landmark: 'Puerta vidriada junto al patio'
+                  - id: 'n-cafeteria'
+                    name: 'Cafetería Universitaria'
+                    building: 'Edificio A'
+                    floor: 1
+                    node_type: 'room'
+                    x: 180
+                    y: 260
+                    z: 0
+                    is_destination: true
+                    landmark: 'Planta baja ala oeste'
+                  - id: 'n-rampa-sur'
+                    name: 'Rampa Accesible Sur'
+                    building: 'Edificio B'
+                    floor: 1
+                    node_type: 'ramp'
+                    x: 520
+                    y: 520
+                    z: 0
+                    is_destination: false
+                    landmark: 'Rampa techada con barandas junto a Biblioteca'
+                  - id: 'n-hall-a-p1'
+                    name: 'Hall Edificio A (Piso 1)'
+                    building: 'Edificio A'
+                    floor: 1
+                    node_type: 'corridor'
+                    x: 340
+                    y: 260
+                    z: 0
+                    is_destination: false
+                    landmark: 'Recepción y tablero de avisos'
+                  - id: 'n-escalera-a-p1'
+                    name: 'Escalera Central A (Piso 1)'
+                    building: 'Edificio A'
+                    floor: 1
+                    node_type: 'stairs'
+                    x: 420
+                    y: 200
+                    z: 0
+                    is_destination: false
+                    landmark: 'Escalera principal de concreto'
+                  - id: 'n-ascensor-a-p1'
+                    name: 'Ascensor Edificio A (Piso 1)'
+                    building: 'Edificio A'
+                    floor: 1
+                    node_type: 'elevator'
+                    x: 340
+                    y: 160
+                    z: 0
+                    is_destination: false
+                    landmark: 'Al costado del hall de Rectorado'
+                  - id: 'n-ascensor-b-p1'
+                    name: 'Ascensor Edificio B (Piso 1)'
+                    building: 'Edificio B'
+                    floor: 1
+                    node_type: 'elevator'
+                    x: 720
+                    y: 280
+                    z: 0
+                    is_destination: false
+                    landmark: 'Pasillo interno norte de Biblioteca'
+                  - id: 'n-escalera-a-p2'
+                    name: 'Escalera Central A (Piso 2)'
+                    building: 'Edificio A'
+                    floor: 2
+                    node_type: 'stairs'
+                    x: 420
+                    y: 200
+                    z: 4
+                    is_destination: false
+                    landmark: 'Descanso superior Edificio A'
+                  - id: 'n-ascensor-a-p2'
+                    name: 'Ascensor Edificio A (Piso 2)'
+                    building: 'Edificio A'
+                    floor: 2
+                    node_type: 'elevator'
+                    x: 340
+                    y: 160
+                    z: 4
+                    is_destination: false
+                    landmark: 'Frente al pasillo de aulas 200'
+                  - id: 'n-ascensor-b-p2'
+                    name: 'Ascensor Edificio B (Piso 2)'
+                    building: 'Edificio B'
+                    floor: 2
+                    node_type: 'elevator'
+                    x: 720
+                    y: 280
+                    z: 4
+                    is_destination: false
+                    landmark: 'Junto al puente techado del Piso 2'
+                  - id: 'n-pasillo-p2'
+                    name: 'Puente Cubierto Piso 2'
+                    building: 'Edificio A-B'
+                    floor: 2
+                    node_type: 'corridor'
+                    x: 560
+                    y: 240
+                    z: 4
+                    is_destination: false
+                    landmark: 'Pasarela cerrada entre Edificio A y B'
+                  - id: 'n-aula-204'
+                    name: 'Aula 204 (Ingeniería)'
+                    building: 'Edificio A'
+                    floor: 2
+                    node_type: 'room'
+                    x: 500
+                    y: 150
+                    z: 4
+                    is_destination: true
+                    landmark: 'Segunda puerta a la derecha del puente'
+                  - id: 'n-lab-computo'
+                    name: 'Laboratorio de Cómputo'
+                    building: 'Edificio B'
+                    floor: 2
+                    node_type: 'room'
+                    x: 840
+                    y: 180
+                    z: 4
+                    is_destination: true
+                    landmark: 'Fondo del pasillo Piso 2 Edificio B'
+                edges:
+                  - id: 'e-1'
+                    from_node_id: 'n-entrada-sur'
+                    to_node_id: 'n-patio-central'
+                    distance_m: 45
+                    base_weight: 1.0
+                    edge_type: 'outdoor'
+                    is_accessible: true
+                    is_covered: false
+                    bidirectional: true
+                  - id: 'e-2'
+                    from_node_id: 'n-entrada-sur'
+                    to_node_id: 'n-rampa-sur'
+                    distance_m: 60
+                    base_weight: 1.15
+                    edge_type: 'ramp'
+                    is_accessible: true
+                    is_covered: true
+                    bidirectional: true
+                  - id: 'e-3'
+                    from_node_id: 'n-patio-central'
+                    to_node_id: 'n-hall-a-p1'
+                    distance_m: 35
+                    base_weight: 1.0
+                    edge_type: 'outdoor'
+                    is_accessible: true
+                    is_covered: false
+                    bidirectional: true
+                  - id: 'e-4'
+                    from_node_id: 'n-hall-a-p1'
+                    to_node_id: 'n-cafeteria'
+                    distance_m: 30
+                    base_weight: 1.0
+                    edge_type: 'corridor'
+                    is_accessible: true
+                    is_covered: true
+                    bidirectional: true
+                  - id: 'e-5'
+                    from_node_id: 'n-hall-a-p1'
+                    to_node_id: 'n-escalera-a-p1'
+                    distance_m: 20
+                    base_weight: 1.0
+                    edge_type: 'corridor'
+                    is_accessible: true
+                    is_covered: true
+                    bidirectional: true
+                  - id: 'e-6'
+                    from_node_id: 'n-hall-a-p1'
+                    to_node_id: 'n-ascensor-a-p1'
+                    distance_m: 25
+                    base_weight: 1.0
+                    edge_type: 'corridor'
+                    is_accessible: true
+                    is_covered: true
+                    bidirectional: true
+                  - id: 'e-7'
+                    from_node_id: 'n-rampa-sur'
+                    to_node_id: 'n-biblioteca'
+                    distance_m: 35
+                    base_weight: 1.0
+                    edge_type: 'corridor'
+                    is_accessible: true
+                    is_covered: true
+                    bidirectional: true
+                  - id: 'e-8'
+                    from_node_id: 'n-biblioteca'
+                    to_node_id: 'n-ascensor-b-p1'
+                    distance_m: 40
+                    base_weight: 1.0
+                    edge_type: 'corridor'
+                    is_accessible: true
+                    is_covered: true
+                    bidirectional: true
+                  - id: 'e-9'
+                    from_node_id: 'n-escalera-a-p1'
+                    to_node_id: 'n-escalera-a-p2'
+                    distance_m: 15
+                    base_weight: 1.4
+                    edge_type: 'stairs'
+                    is_accessible: false
+                    is_covered: true
+                    bidirectional: true
+                  - id: 'e-10'
+                    from_node_id: 'n-ascensor-a-p1'
+                    to_node_id: 'n-ascensor-a-p2'
+                    distance_m: 10
+                    base_weight: 1.3
+                    edge_type: 'elevator'
+                    is_accessible: true
+                    is_covered: true
+                    bidirectional: true
+                  - id: 'e-11'
+                    from_node_id: 'n-ascensor-b-p1'
+                    to_node_id: 'n-ascensor-b-p2'
+                    distance_m: 10
+                    base_weight: 1.3
+                    edge_type: 'elevator'
+                    is_accessible: true
+                    is_covered: true
+                    bidirectional: true
+                  - id: 'e-12'
+                    from_node_id: 'n-escalera-a-p2'
+                    to_node_id: 'n-aula-204'
+                    distance_m: 25
+                    base_weight: 1.0
+                    edge_type: 'corridor'
+                    is_accessible: true
+                    is_covered: true
+                    bidirectional: true
+                  - id: 'e-13'
+                    from_node_id: 'n-ascensor-a-p2'
+                    to_node_id: 'n-aula-204'
+                    distance_m: 30
+                    base_weight: 1.0
+                    edge_type: 'corridor'
+                    is_accessible: true
+                    is_covered: true
+                    bidirectional: true
+                  - id: 'e-14'
+                    from_node_id: 'n-ascensor-b-p2'
+                    to_node_id: 'n-pasillo-p2'
+                    distance_m: 25
+                    base_weight: 1.0
+                    edge_type: 'corridor'
+                    is_accessible: true
+                    is_covered: true
+                    bidirectional: true
+                  - id: 'e-15'
+                    from_node_id: 'n-pasillo-p2'
+                    to_node_id: 'n-aula-204'
+                    distance_m: 20
+                    base_weight: 1.0
+                    edge_type: 'corridor'
+                    is_accessible: true
+                    is_covered: true
+                    bidirectional: true
+                  - id: 'e-16'
+                    from_node_id: 'n-ascensor-b-p2'
+                    to_node_id: 'n-lab-computo'
+                    distance_m: 30
+                    base_weight: 1.0
+                    edge_type: 'corridor'
+                    is_accessible: true
+                    is_covered: true
+                    bidirectional: true
+                active_incidents:
+                  - id: 'inc-101'
+                    target_type: 'node'
+                    node_id: 'n-ascensor-a-p1'
+                    edge_id: null
+                    conflict_type: 'elevator_broken'
+                    severity: 'blocking'
+                    status: 'active'
+                    description: 'Ascensor Edificio A fuera de servicio por mantenimiento'
+                    reported_at: '2026-11-21T10:15:00Z'
+                    resolved_at: null
+
+  /api/v1/campus/locations:
+    get:
+      tags: [Campus]
+      summary: Listar puntos seleccionables como origen (A) o destino (B)
+      operationId: listCampusLocations
+      parameters:
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: floor
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Lista de ubicaciones del campus
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LocationsResponse'
+              example:
+                items:
+                  - id: 'n-entrada-sur'
+                    name: 'Entrada Principal Sur'
+                    building: 'Exterior'
+                    floor: 1
+                    node_type: 'entrance'
+                    landmark: 'Frente a la garita y parada de bus'
+                  - id: 'n-biblioteca'
+                    name: 'Biblioteca Central'
+                    building: 'Edificio B'
+                    floor: 1
+                    node_type: 'room'
+                    landmark: 'Puerta vidriada junto al patio'
+                  - id: 'n-cafeteria'
+                    name: 'Cafetería Universitaria'
+                    building: 'Edificio A'
+                    floor: 1
+                    node_type: 'room'
+                    landmark: 'Planta baja ala oeste'
+                  - id: 'n-aula-204'
+                    name: 'Aula 204 (Ingeniería)'
+                    building: 'Edificio A'
+                    floor: 2
+                    node_type: 'room'
+                    landmark: 'Segunda puerta a la derecha del puente'
+                  - id: 'n-lab-computo'
+                    name: 'Laboratorio de Cómputo'
+                    building: 'Edificio B'
+                    floor: 2
+                    node_type: 'room'
+                    landmark: 'Fondo del pasillo Piso 2 Edificio B'
+
+  /api/v1/incidents:
+    get:
+      tags: [Incidents]
+      summary: Listar incidencias / conflictos reportados en el campus
+      operationId: listIncidents
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [active, resolved, all]
+            default: active
+      responses:
+        '200':
+          description: Lista de incidencias
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IncidentsListResponse'
+              example:
+                items:
+                  - id: 'inc-101'
+                    target_type: 'node'
+                    node_id: 'n-ascensor-a-p1'
+                    edge_id: null
+                    conflict_type: 'elevator_broken'
+                    severity: 'blocking'
+                    status: 'active'
+                    description: 'Ascensor Edificio A fuera de servicio por mantenimiento'
+                    reported_at: '2026-11-21T10:15:00Z'
+                    resolved_at: null
+
+    post:
+      tags: [Incidents]
+      summary: Reportar una nueva incidencia (ascensor/escalera/rampa/pasillo)
+      operationId: createIncident
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateIncidentRequest'
+      responses:
+        '201':
+          description: Incidencia creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+        '400':
+          description: Validación fallida (ej. falta node_id o edge_id)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/incidents/{incidentId}:
+    patch:
+      tags: [Incidents]
+      summary: Resolver o actualizar una incidencia existente
+      operationId: updateIncident
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: incidentId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateIncidentRequest'
+      responses:
+        '200':
+          description: Incidencia actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Incident'
+        '400':
+          description: Datos inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Incidencia no encontrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/routes/calculate:
+    post:
+      tags: [Routes]
+      summary: Calcular ruta óptima A->B mediante búsqueda en grafo ponderado (A* / Dijkstra)
+      operationId: calculateRoute
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CalculateRouteRequest'
+      responses:
+        '200':
+          description: Ruta óptima calculada con métricas, telemetría de búsqueda y pasos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CalculateRouteResponse'
+              example:
+                origin_node_id: 'n-entrada-sur'
+                destination_node_id: 'n-aula-204'
+                reduced_mobility: true
+                accessibility_verified: true
+                weather_applied:
+                  condition: 'clear'
+                  rain_avoidance_active: false
+                metrics:
+                  total_distance_m: 190
+                  estimated_time_min: 3.6
+                  floors_traversed: [1, 2]
+                  uses_elevator: true
+                  uses_ramp: true
+                  uses_stairs: false
+                graph_stats:
+                  algorithm_used: 'astar'
+                  total_weight: 202.0
+                  nodes_explored: 9
+                path_node_ids:
+                  - 'n-entrada-sur'
+                  - 'n-rampa-sur'
+                  - 'n-biblioteca'
+                  - 'n-ascensor-b-p1'
+                  - 'n-ascensor-b-p2'
+                  - 'n-pasillo-p2'
+                  - 'n-aula-204'
+                path_edge_ids:
+                  - 'e-2'
+                  - 'e-7'
+                  - 'e-8'
+                  - 'e-11'
+                  - 'e-14'
+                  - 'e-15'
+                steps:
+                  - order: 1
+                    from_node_id: 'n-entrada-sur'
+                    to_node_id: 'n-rampa-sur'
+                    floor: 1
+                    edge_type: 'ramp'
+                    distance_m: 60
+                    edge_weight: 69.0
+                    instruction: 'Desde Entrada Principal Sur, toma la Rampa Accesible Sur (60 m, cubierta) hacia el Edificio B.'
+                  - order: 2
+                    from_node_id: 'n-rampa-sur'
+                    to_node_id: 'n-biblioteca'
+                    floor: 1
+                    edge_type: 'corridor'
+                    distance_m: 35
+                    edge_weight: 35.0
+                    instruction: 'Continúa 35 m por el pasillo cubierto pasando frente a Biblioteca Central.'
+                  - order: 3
+                    from_node_id: 'n-biblioteca'
+                    to_node_id: 'n-ascensor-b-p1'
+                    floor: 1
+                    edge_type: 'corridor'
+                    distance_m: 40
+                    edge_weight: 40.0
+                    instruction: 'Avanza 40 m por el pasillo interno norte hasta Ascensor Edificio B (Piso 1).'
+                  - order: 4
+                    from_node_id: 'n-ascensor-b-p1'
+                    to_node_id: 'n-ascensor-b-p2'
+                    floor: 2
+                    edge_type: 'elevator'
+                    distance_m: 10
+                    edge_weight: 13.0
+                    instruction: 'Sube en el Ascensor Edificio B hasta el Piso 2.'
+                  - order: 5
+                    from_node_id: 'n-ascensor-b-p2'
+                    to_node_id: 'n-pasillo-p2'
+                    floor: 2
+                    edge_type: 'corridor'
+                    distance_m: 25
+                    edge_weight: 25.0
+                    instruction: 'Cruza 25 m por el Puente Cubierto Piso 2 hacia el Edificio A.'
+                  - order: 6
+                    from_node_id: 'n-pasillo-p2'
+                    to_node_id: 'n-aula-204'
+                    floor: 2
+                    edge_type: 'corridor'
+                    distance_m: 20
+                    edge_weight: 20.0
+                    instruction: 'Avanza 20 m hasta llegar a Aula 204 (Ingeniería), segunda puerta a la derecha.'
+                avoided_conflicts:
+                  - incident_id: 'inc-101'
+                    target_name: 'Ascensor Edificio A (Piso 1)'
+                    conflict_type: 'elevator_broken'
+                    reason: 'Evitado automáticamente por falla reportada; ruta desviada por Rampa Sur y Ascensor Edificio B.'
+        '400':
+          description: Parámetros inválidos (ej. origen igual a destino)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Nodo de origen o destino no existe
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: No existe ruta viable o accesible debido a incidencias activas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error:
+                  code: 'NO_ACCESSIBLE_ROUTE'
+                  message: 'No hay una ruta accesible disponible hacia el Piso 2 porque todos los ascensores están fuera de servicio.'
+                  details:
+                    blocking_incident_ids: ['inc-101', 'inc-102']
+
+  /api/v1/external/weather:
+    get:
+      tags: [External]
+      summary: Clima actual del campus vía Open-Meteo (con fallback seguro)
+      operationId: getCampusWeather
+      responses:
+        '200':
+          description: Estado del clima del campus
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WeatherResponse'

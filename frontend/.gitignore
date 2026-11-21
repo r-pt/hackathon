@@ -1,0 +1,19 @@
+# Variables de entorno locales (mantener .env.example)
+.env
+.env.*
+!.env.example
+
+# Dependencias y build (Node / Vite / Vercel)
+node_modules/
+dist/
+dist-ssr/
+.vite/
+.vercel/
+*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+*.log
