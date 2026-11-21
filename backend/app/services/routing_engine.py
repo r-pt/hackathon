@@ -257,11 +257,10 @@ def calculate_route_plan(
     blocked_edges: set[str] = set(request.simulated_blocked_edge_ids)
     warning_nodes: set[str] = set()
     warning_edges: set[str] = set()
-    blocking_incident_ids: list[str] = []
+    blocking_incidents = [inc for inc in active_incidents if inc.severity == "blocking"]
 
     for inc in active_incidents:
         if inc.severity == "blocking":
-            blocking_incident_ids.append(inc.id)
             if inc.target_type == "node" and inc.node_id:
                 blocked_nodes.add(inc.node_id)
             elif inc.target_type == "edge" and inc.edge_id:
@@ -287,6 +286,40 @@ def calculate_route_plan(
     )
 
     if result is None:
+        probe_nodes = set(request.simulated_blocked_node_ids)
+        probe_edges = set(request.simulated_blocked_edge_ids)
+        blocking_incident_ids: list[str] = []
+
+        while blocking_incidents:
+            probe = run_shortest_path(
+                nodes_by_id=nodes_by_id,
+                edges=edges,
+                origin_node_id=request.origin_node_id,
+                destination_node_id=request.destination_node_id,
+                algorithm="dijkstra",
+                blocked_nodes=probe_nodes,
+                blocked_edges=probe_edges,
+                warning_nodes=set(),
+                warning_edges=set(),
+                reduced_mobility=request.reduced_mobility,
+                rain_avoidance_active=rain_avoidance_active,
+            )
+            if probe is None:
+                break
+            hit = False
+            for inc in blocking_incidents:
+                if inc.target_type == "node" and inc.node_id in probe.path_node_ids:
+                    probe_nodes.add(inc.node_id)
+                    hit = True
+                elif inc.target_type == "edge" and inc.edge_id in probe.path_edge_ids:
+                    probe_edges.add(inc.edge_id)
+                    hit = True
+                else:
+                    continue
+                if inc.id not in blocking_incident_ids:
+                    blocking_incident_ids.append(inc.id)
+            if not hit:
+                break
         if request.reduced_mobility:
             raise APIError(
                 status_code=422,
@@ -315,8 +348,8 @@ def calculate_route_plan(
             origin_node_id=request.origin_node_id,
             destination_node_id=request.destination_node_id,
             algorithm="dijkstra",
-            blocked_nodes=set(),
-            blocked_edges=set(),
+            blocked_nodes=set(request.simulated_blocked_node_ids),
+            blocked_edges=set(request.simulated_blocked_edge_ids),
             warning_nodes=set(),
             warning_edges=set(),
             reduced_mobility=request.reduced_mobility,

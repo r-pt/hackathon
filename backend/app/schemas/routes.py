@@ -4,9 +4,9 @@ Matches docs/openapi.yaml (Source of Truth) for POST /api/v1/routes/calculate.
 """
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 NodeType = Literal["entrance", "room", "corridor", "elevator", "stairs", "ramp"]
 EdgeType = Literal["corridor", "stairs", "elevator", "ramp", "outdoor"]
@@ -36,6 +36,11 @@ class GraphNode(BaseModel):
     z: int
     is_destination: bool = False
     landmark: str = ""
+
+    @field_validator("landmark", mode="before")
+    @classmethod
+    def _coerce_none_landmark(cls, value: Any) -> Any:
+        return "" if value is None else value
 
 
 class GraphEdge(BaseModel):

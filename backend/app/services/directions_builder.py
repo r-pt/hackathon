@@ -66,20 +66,33 @@ def _format_step_instruction(
     is_last = step_index == total_steps - 1
 
     if edge.edge_type == "elevator":
-        direction = "Sube" if to_node.floor >= from_node.floor else "Baja"
+        direction = (
+            "Sube"
+            if (to_node.floor, to_node.z) >= (from_node.floor, from_node.z)
+            else "Baja"
+        )
         return (
             f"{direction} en {from_node.name} hasta el Piso {to_node.floor} "
             f"({to_node.name})."
         )
 
     if edge.edge_type == "stairs":
-        direction = "Sube" if to_node.floor >= from_node.floor else "Baja"
+        direction = (
+            "Sube"
+            if (to_node.floor, to_node.z) >= (from_node.floor, from_node.z)
+            else "Baja"
+        )
         return (
             f"{direction} por {from_node.name} ({edge.distance_m} m) hasta el "
             f"Piso {to_node.floor}."
         )
 
     if edge.edge_type == "ramp":
+        if from_node.node_type == "ramp" and to_node.node_type != "ramp":
+            return (
+                f"Toma {from_node.name} ({edge.distance_m} m, {covered_tag}) "
+                f"hacia {to_node.name}."
+            )
         prefix = f"Desde {from_node.name}, toma" if is_first else "Toma"
         return (
             f"{prefix} {to_node.name} ({edge.distance_m} m, {covered_tag}) "
@@ -105,7 +118,8 @@ def _format_step_instruction(
             f"hasta {to_node.name}."
         )
 
-    return f"Continúa {edge.distance_m} m por el pasillo cubierto hasta {to_node.name}."
+    corridor_label = "pasillo cubierto" if edge.is_covered else "pasillo"
+    return f"Continúa {edge.distance_m} m por el {corridor_label} hasta {to_node.name}."
 
 
 def build_steps(

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import sys
+import types
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -10,7 +12,9 @@ from fastapi.testclient import TestClient
 
 from app.core.errors import APIError
 from app.main import app
-from app.schemas.routes import CalculateRouteRequest, GraphIncident
+from app.routers.routes import load_campus_graph
+from app.schemas.routes import CalculateRouteRequest, GraphEdge, GraphIncident, GraphNode
+from app.services.directions_builder import build_steps
 from app.services.graph_fixture import get_casa_central_graph, get_sample_graph
 from app.services.routing_engine import calculate_route_plan
 from app.services.weather_service import (
@@ -111,17 +115,29 @@ def test_reduced_mobility_avoids_broken_elevator_a_and_matches_openapi_example()
 
 def test_reduced_mobility_total_block_raises_422_no_accessible_route() -> None:
     nodes, edges, incidents = get_sample_graph()
-    incidents.append(
-        GraphIncident(
-            id="inc-102",
-            target_type="node",
-            node_id="n-ascensor-b-p1",
-            edge_id=None,
-            conflict_type="elevator_broken",
-            severity="blocking",
-            status="active",
-            description="Ascensor Edificio B fuera de servicio",
-        )
+    incidents.extend(
+        [
+            GraphIncident(
+                id="inc-102",
+                target_type="node",
+                node_id="n-ascensor-b-p1",
+                edge_id=None,
+                conflict_type="elevator_broken",
+                severity="blocking",
+                status="active",
+                description="Ascensor Edificio B fuera de servicio",
+            ),
+            GraphIncident(
+                id="inc-999",
+                target_type="node",
+                node_id="n-cafeteria",
+                edge_id=None,
+                conflict_type="corridor_closed",
+                severity="blocking",
+                status="active",
+                description="Cafetería cerrada (no afecta ruta a Piso 2)",
+            ),
+        ]
     )
 
     req = CalculateRouteRequest(
@@ -137,6 +153,19 @@ def test_reduced_mobility_total_block_raises_422_no_accessible_route() -> None:
     assert err.status_code == 422
     assert err.code == "NO_ACCESSIBLE_ROUTE"
     assert set(err.details["blocking_incident_ids"]) == {"inc-101", "inc-102"}
+
+    # Route blocked purely by simulation should not blame unrelated inc-101
+    sim_only_req = CalculateRouteRequest(
+        origin_node_id="n-hall-a-p1",
+        destination_node_id="n-cafeteria",
+        reduced_mobility=False,
+        simulated_blocked_edge_ids=["e-4"],
+    )
+    with pytest.raises(APIError) as sim_exc:
+        calculate_route_plan(
+            request=sim_only_req, nodes=nodes, edges=edges, incidents=incidents
+        )
+    assert sim_exc.value.details["blocking_incident_ids"] == []
 
 
 def test_disconnected_graph_without_reduced_mobility_raises_422_route_not_found() -> None:
@@ -268,6 +297,194 @@ def test_casa_central_utfsm_preset_avoids_stairs_and_broken_elevator() -> None:
     assert any(c.incident_id == "cc-inc-1" for c in res.avoided_conflicts)
 
 
+def test_simulated_block_preserves_avoided_conflicts_for_normal_user() -> None:
+    nodes, edges, incidents = get_sample_graph()
+    req = CalculateRouteRequest(
+        origin_node_id="n-entrada-sur",
+        destination_node_id="n-aula-204",
+        reduced_mobility=False,
+        simulated_blocked_node_ids=["n-escalera-a-p1"],
+    )
+
+    res = calculate_route_plan(request=req, nodes=nodes, edges=edges, incidents=incidents)
+
+    assert any(c.incident_id == "inc-101" for c in res.avoided_conflicts)
+
+
+def test_reverse_ramp_instruction_names_ramp_and_destination() -> None:
+    nodes, edges, incidents = get_sample_graph()
+    req = CalculateRouteRequest(
+        origin_node_id="n-aula-204",
+        destination_node_id="n-entrada-sur",
+        reduced_mobility=True,
+    )
+
+    res = calculate_route_plan(request=req, nodes=nodes, edges=edges, incidents=incidents)
+    ramp_steps = [step for step in res.steps if step.edge_type == "ramp"]
+
+    assert len(ramp_steps) == 1
+    assert "Rampa Accesible Sur" in ramp_steps[0].instruction
+    assert "Entrada Principal Sur" in ramp_steps[0].instruction
+
+
+def test_downward_same_floor_stairs_instruction_says_baja() -> None:
+    nodes, edges, incidents = get_casa_central_graph()
+    req = CalculateRouteRequest(
+        origin_node_id="cc-edificio-a-p1",
+        destination_node_id="cc-acceso-espana",
+        reduced_mobility=False,
+    )
+
+    res = calculate_route_plan(request=req, nodes=nodes, edges=edges, incidents=incidents)
+    stairs_steps = [step for step in res.steps if step.edge_type == "stairs"]
+
+    assert len(stairs_steps) == 1
+    assert stairs_steps[0].instruction.startswith("Baja")
+
+
+def test_intermediate_uncovered_corridor_does_not_say_pasillo_cubierto() -> None:
+    nodes = [
+        GraphNode(
+            id=f"n-{i}",
+            name=f"Punto {i}",
+            building="Edificio A",
+            floor=1,
+            node_type="corridor",
+            x=i * 10,
+            y=0,
+            z=0,
+        )
+        for i in range(4)
+    ]
+    edges = [
+        GraphEdge(
+            id="e-1",
+            from_node_id="n-0",
+            to_node_id="n-1",
+            distance_m=10,
+            base_weight=1.0,
+            edge_type="corridor",
+            is_accessible=True,
+            is_covered=True,
+        ),
+        GraphEdge(
+            id="e-2",
+            from_node_id="n-1",
+            to_node_id="n-2",
+            distance_m=15,
+            base_weight=1.0,
+            edge_type="corridor",
+            is_accessible=True,
+            is_covered=False,
+        ),
+        GraphEdge(
+            id="e-3",
+            from_node_id="n-2",
+            to_node_id="n-3",
+            distance_m=10,
+            base_weight=1.0,
+            edge_type="corridor",
+            is_accessible=True,
+            is_covered=True,
+        ),
+    ]
+
+    steps = build_steps(
+        path_node_ids=["n-0", "n-1", "n-2", "n-3"],
+        traversed_edges=edges,
+        edge_weights=[10.0, 15.0, 10.0],
+        nodes_by_id={node.id: node for node in nodes},
+    )
+
+    assert "pasillo cubierto" not in steps[1].instruction
+    assert "pasillo" in steps[1].instruction
+
+
+def test_load_campus_graph_uses_supabase_and_coerces_none_landmark() -> None:
+    node_rows = [
+        {
+            "id": "sb-1",
+            "name": "Acceso Supabase",
+            "building": "Edificio SB",
+            "floor": 1,
+            "node_type": "entrance",
+            "x": 10,
+            "y": 20,
+            "z": 0,
+            "is_destination": True,
+            "landmark": None,
+        },
+        {
+            "id": "sb-2",
+            "name": "Aula Supabase",
+            "building": "Edificio SB",
+            "floor": 1,
+            "node_type": "room",
+            "x": 40,
+            "y": 20,
+            "z": 0,
+            "is_destination": True,
+            "landmark": "Puerta azul",
+        },
+    ]
+    edge_rows = [
+        {
+            "id": "sb-e1",
+            "from_node_id": "sb-1",
+            "to_node_id": "sb-2",
+            "distance_m": 25,
+            "base_weight": 1.0,
+            "edge_type": "corridor",
+            "is_accessible": True,
+            "is_covered": True,
+            "bidirectional": True,
+        }
+    ]
+    incident_rows = [
+        {
+            "id": "sb-inc-1",
+            "target_type": "edge",
+            "node_id": None,
+            "edge_id": "sb-e1",
+            "conflict_type": "crowd_congestion",
+            "severity": "warning",
+            "status": "active",
+            "description": "Alta afluencia",
+        }
+    ]
+
+    def make_table(name: str) -> MagicMock:
+        table = MagicMock()
+        query = table.select.return_value
+        if name == "nodes":
+            query.execute.return_value = MagicMock(data=node_rows)
+        elif name == "edges":
+            query.execute.return_value = MagicMock(data=edge_rows)
+        else:
+            query.eq.return_value.execute.return_value = MagicMock(data=incident_rows)
+        return table
+
+    fake_client = MagicMock()
+    fake_client.table.side_effect = make_table
+
+    fake_db_pkg = types.ModuleType("app.db")
+    fake_supabase_mod = types.ModuleType("app.db.supabase")
+    fake_supabase_mod.get_supabase = lambda: fake_client  # type: ignore[attr-defined]
+    fake_db_pkg.supabase = fake_supabase_mod  # type: ignore[attr-defined]
+
+    with patch.dict(
+        sys.modules,
+        {"app.db": fake_db_pkg, "app.db.supabase": fake_supabase_mod},
+    ):
+        nodes, edges, incidents = load_campus_graph()
+
+    assert [n.id for n in nodes] == ["sb-1", "sb-2"]
+    assert nodes[0].landmark == ""
+    assert nodes[1].landmark == "Puerta azul"
+    assert [e.id for e in edges] == ["sb-e1"]
+    assert [i.id for i in incidents] == ["sb-inc-1"]
+
+
 # ---------------------------------------------------------------------------
 # 2. Weather service tests (live parsing, 5-min cache, silent fallback)
 # ---------------------------------------------------------------------------
@@ -379,6 +596,29 @@ def test_http_post_routes_calculate_400_and_422_error_shape() -> None:
     )
     assert resp_422.status_code == 422
     assert resp_422.json()["error"]["code"] == "NO_ACCESSIBLE_ROUTE"
+
+
+def test_http_post_routes_calculate_simulate_rain_skips_live_weather() -> None:
+    clear_weather_cache()
+    mock_weather = AsyncMock()
+
+    with patch("app.routers.routes.get_campus_weather", mock_weather):
+        response = client.post(
+            "/api/v1/routes/calculate",
+            json={
+                "origin_node_id": "n-entrada-sur",
+                "destination_node_id": "n-aula-204",
+                "reduced_mobility": False,
+                "use_live_weather": True,
+                "simulate_rain": True,
+            },
+        )
+
+    assert response.status_code == 200
+    mock_weather.assert_not_called()
+    body = response.json()
+    assert body["weather_applied"]["condition"] == "rain"
+    assert body["weather_applied"]["rain_avoidance_active"] is True
 
 
 def test_http_get_external_weather_returns_contract_shape() -> None:

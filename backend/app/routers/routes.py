@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -58,7 +59,7 @@ def load_campus_graph() -> tuple[list[GraphNode], list[GraphEdge], list[GraphInc
         if nodes_data and edges_data:
             return _parse_supabase_rows(nodes_data, edges_data, incidents_data)
     except Exception as exc:
-        logger.debug("Using local graph fixture fallback (Supabase unavailable: %s)", exc)
+        logger.warning("Using local graph fixture fallback (Supabase unavailable: %s)", exc)
 
     return get_sample_graph()
 
@@ -66,20 +67,17 @@ def load_campus_graph() -> tuple[list[GraphNode], list[GraphEdge], list[GraphInc
 @router.post("/calculate", response_model=CalculateRouteResponse)
 async def calculate_route(payload: CalculateRouteRequest) -> CalculateRouteResponse:
     """Calculate optimal route A->B using weighted A* or Dijkstra."""
-    nodes, edges, incidents = load_campus_graph()
+    nodes, edges, incidents = await asyncio.to_thread(load_campus_graph)
 
     weather_condition: WeatherCondition = "clear"
     live_rain_alert = False
 
-    if payload.use_live_weather:
+    if payload.simulate_rain:
+        weather_condition = "rain"
+    elif payload.use_live_weather:
         weather = await get_campus_weather()
         weather_condition = weather.condition
         live_rain_alert = weather.rain_alert
-    elif payload.simulate_rain:
-        weather_condition = "rain"
-
-    if payload.simulate_rain:
-        weather_condition = "rain"
 
     rain_avoidance_active = (
         payload.prefer_covered
