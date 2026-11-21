@@ -1,0 +1,24 @@
+# Agentes y skills locales (Antigravity)
+.agents/
+
+# Credenciales y variables de entorno (NUNCA subir a GitHub)
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+
+# Dependencias de Node.js (Backend y Frontend)
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Datos locales de Docker / MySQL
+mysql-data/
+db_data/
+
+# Archivos temporales de Windows y logs
+Thumbs.db
+Desktop.ini
+*.log
