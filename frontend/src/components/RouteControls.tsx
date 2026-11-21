@@ -30,7 +30,7 @@ export interface RouteControlsProps extends Omit<RouteControlsPatch, 'originId' 
 }
 
 const fieldBaseClass =
-  'min-h-10 w-full rounded-xl border border-slate-300 bg-slate-50/90 px-3 py-2 text-sm text-slate-900 shadow-inner transition-colors hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9]'
+  'min-h-10 w-full rounded-xl border border-slate-300 bg-slate-50/90 px-3 py-2 text-sm text-slate-900 shadow-inner transition-colors hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800'
 
 const NODE_TYPE_ICON: Record<NodeType, string> = {
   room: '🏛️',
@@ -110,13 +110,13 @@ function LocationSelect({
     <div className="grid gap-1">
       <label
         htmlFor={id}
-        className="flex items-center gap-2 text-xs font-semibold text-slate-800"
+        className="flex items-center gap-2 text-xs font-semibold text-slate-800 dark:text-slate-200"
       >
         <span
           className={
             isOrigin
-              ? 'pill-3d inline-flex items-center gap-1 rounded-full border border-sky-300 bg-sky-100 px-2 py-0.5 font-display text-xs font-bold text-sky-900'
-              : 'pill-3d inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 font-display text-xs font-bold text-amber-950'
+              ? 'pill-3d inline-flex items-center gap-1 rounded-full border border-sky-300 bg-sky-100 px-2 py-0.5 font-display text-xs font-bold text-sky-900 dark:border-sky-700 dark:bg-sky-950/80 dark:text-sky-200'
+              : 'pill-3d inline-flex items-center gap-1 rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 font-display text-xs font-bold text-amber-950 dark:border-amber-700 dark:bg-amber-950/80 dark:text-amber-200'
           }
         >
           {isOrigin ? <PersonBadgeIcon /> : <FlagBadgeIcon />}
@@ -130,8 +130,8 @@ function LocationSelect({
         className={`${fieldBaseClass} ${
           hasSelection
             ? isOrigin
-              ? 'border-l-4 border-l-[#0EA5E9] bg-white'
-              : 'border-l-4 border-l-amber-400 bg-white'
+              ? 'border-l-4 border-l-[#0EA5E9] bg-white dark:border-l-sky-400 dark:bg-slate-900'
+              : 'border-l-4 border-l-amber-400 bg-white dark:border-l-amber-400 dark:bg-slate-900'
             : ''
         }`}
         value={value ?? ''}
@@ -175,8 +175,8 @@ function Toggle({
   onToggle: (v: boolean) => void
 }) {
   return (
-    <div className="card-3d flex min-h-10 items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-1.5 transition-colors hover:bg-slate-100/90">
-      <label htmlFor={id} className="cursor-pointer text-sm font-medium text-slate-800">
+    <div className="card-3d flex min-h-10 items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-1.5 transition-colors hover:bg-slate-100/90 dark:bg-slate-800/80 dark:hover:bg-slate-800">
+      <label htmlFor={id} className="cursor-pointer text-sm font-medium text-slate-800 dark:text-slate-100">
         {label}
       </label>
       <input
@@ -245,7 +245,7 @@ export function RouteControls({
       />
       <button
         type="button"
-        className="btn-3d min-h-9 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-all duration-150 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] disabled:cursor-not-allowed disabled:opacity-40"
+        className="btn-3d min-h-9 rounded-xl border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-all duration-150 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] disabled:cursor-not-allowed disabled:opacity-40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
         onClick={() =>
           onChange({
             originId: destId ?? '',
@@ -268,8 +268,8 @@ export function RouteControls({
       />
 
       {showGpsPanel && (
-        <fieldset className="card-3d grid gap-2 rounded-2xl border border-sky-200/90 bg-sky-50/75 p-3">
-          <legend className="font-display px-1 text-xs font-bold text-sky-950">
+        <fieldset className="card-3d grid gap-2 rounded-2xl border border-sky-200/90 bg-sky-50/75 p-3 dark:border-sky-800/80 dark:bg-slate-800/80">
+          <legend className="font-display px-1 text-xs font-bold text-sky-950 dark:text-sky-200">
             Modo GPS en vivo
           </legend>
 
@@ -281,7 +281,7 @@ export function RouteControls({
               className={
                 gpsRealActive
                   ? 'btn-3d-primary flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-[#0EA5E9] px-3 py-2 text-xs font-bold text-white transition-all duration-150 hover:bg-sky-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-700'
-                  : 'btn-3d flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-sky-300 bg-white px-3 py-2 text-xs font-semibold text-sky-900 transition-all duration-150 hover:bg-sky-100/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9]'
+                  : 'btn-3d flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-sky-300 bg-white px-3 py-2 text-xs font-semibold text-sky-900 transition-all duration-150 hover:bg-sky-100/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] dark:border-sky-700 dark:bg-slate-800 dark:text-sky-200 dark:hover:bg-slate-700'
               }
             >
               <span
@@ -303,7 +303,7 @@ export function RouteControls({
                   type="button"
                   onClick={onStepForward}
                   disabled={!hasActiveRoute}
-                  className="btn-3d min-h-9 rounded-xl border border-indigo-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-indigo-900 transition-all duration-150 hover:bg-indigo-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:cursor-not-allowed disabled:opacity-45"
+                  className="btn-3d min-h-9 rounded-xl border border-indigo-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-indigo-900 transition-all duration-150 hover:bg-indigo-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 disabled:cursor-not-allowed disabled:opacity-45 dark:border-indigo-700 dark:bg-slate-800 dark:text-indigo-200 dark:hover:bg-slate-700"
                 >
                   Avanzar 1 paso
                 </button>
@@ -329,7 +329,7 @@ export function RouteControls({
           {gpsError && (
             <p
               role="alert"
-              className="rounded-xl border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs font-medium text-amber-950"
+              className="rounded-xl border border-amber-300 bg-amber-50 px-2.5 py-2 text-xs font-medium text-amber-950 dark:border-amber-700 dark:bg-amber-950/70 dark:text-amber-100"
             >
               {gpsError}
             </p>
@@ -341,8 +341,8 @@ export function RouteControls({
               aria-live="polite"
               className={
                 reachedGoal
-                  ? 'rounded-xl border border-emerald-300 bg-emerald-50 px-2.5 py-2 text-xs font-bold text-emerald-950'
-                  : 'rounded-xl border border-sky-200 bg-white/90 px-2.5 py-1.5 text-xs font-medium text-sky-950'
+                  ? 'rounded-xl border border-emerald-300 bg-emerald-50 px-2.5 py-2 text-xs font-bold text-emerald-950 dark:border-emerald-700 dark:bg-emerald-950/70 dark:text-emerald-100'
+                  : 'rounded-xl border border-sky-200 bg-white/90 px-2.5 py-1.5 text-xs font-medium text-sky-950 dark:border-sky-800 dark:bg-sky-950/60 dark:text-sky-100'
               }
             >
               {gpsStatusMessage}
@@ -351,15 +351,15 @@ export function RouteControls({
         </fieldset>
       )}
 
-      <div className="card-3d grid gap-1.5 rounded-2xl border border-slate-200/90 bg-slate-50/90 p-3">
-        <p className="font-display text-xs font-bold text-slate-800">
+      <div className="card-3d grid gap-1.5 rounded-2xl border border-slate-200/90 bg-slate-50/90 p-3 dark:border-slate-700 dark:bg-slate-800/80">
+        <p className="font-display text-xs font-bold text-slate-800 dark:text-slate-100">
           Entorno: Escaleras y Elevación
         </p>
         <p
           className={
             stairsAllowedNow
-              ? 'text-xs font-medium text-amber-950'
-              : 'text-xs font-semibold text-emerald-900'
+              ? 'text-xs font-medium text-amber-950 dark:text-amber-200'
+              : 'text-xs font-semibold text-emerald-900 dark:text-emerald-300'
           }
         >
           {stairsAllowedNow
@@ -367,17 +367,17 @@ export function RouteControls({
             : '♿ Evitar escaleras — usar rampas y ascensores'}
         </p>
         <div className="flex flex-wrap gap-1.5 pt-0.5">
-          <span className="pill-3d rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700">
+          <span className="pill-3d rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
             P1↔P2: {floorStairsEnabled ? 'Activas' : 'Desactivadas'}
           </span>
-          <span className="pill-3d rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700">
+          <span className="pill-3d rounded-full border border-slate-200 bg-white px-2 py-0.5 text-[11px] font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200">
             Desniveles Δz: {elevationStairsEnabled ? 'Activos' : 'Desactivados'}
           </span>
         </div>
       </div>
 
-      <fieldset className="grid gap-1.5 border-t border-slate-200/80 pt-2.5">
-        <legend className="font-display text-xs font-semibold text-slate-600">
+      <fieldset className="grid gap-1.5 border-t border-slate-200/80 pt-2.5 dark:border-slate-700/80">
+        <legend className="font-display text-xs font-semibold text-slate-600 dark:text-slate-300">
           Preferencias de accesibilidad y clima
         </legend>
         <Toggle
@@ -403,9 +403,9 @@ export function RouteControls({
         />
       </fieldset>
 
-      <div className="grid grid-cols-2 gap-2 border-t border-slate-200/80 pt-2.5">
+      <div className="grid grid-cols-2 gap-2 border-t border-slate-200/80 pt-2.5 dark:border-slate-700/80">
         <div className="grid gap-1">
-          <label htmlFor="route-floor-view" className="text-xs font-semibold text-slate-700">
+          <label htmlFor="route-floor-view" className="text-xs font-semibold text-slate-700 dark:text-slate-200">
             Vista de pisos
           </label>
           <select
@@ -428,7 +428,7 @@ export function RouteControls({
         </div>
 
         <div className="grid gap-1">
-          <label htmlFor="route-algorithm" className="text-xs font-semibold text-slate-700">
+          <label htmlFor="route-algorithm" className="text-xs font-semibold text-slate-700 dark:text-slate-200">
             Algoritmo
           </label>
           <select

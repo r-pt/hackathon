@@ -44,7 +44,7 @@ const EDGE_TYPE_LABELS: Record<EdgeType, string> = {
 const DEMO_TOKEN = 'demo-student-token'
 
 const fieldClass =
-  'min-h-10 w-full rounded-xl border border-slate-300 bg-slate-50/90 px-3 py-2 text-sm text-slate-900 transition-colors hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9]'
+  'min-h-10 w-full rounded-xl border border-slate-300 bg-slate-50/90 px-3 py-2 text-sm text-slate-900 transition-colors hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800 dark:placeholder:text-slate-400'
 
 export function IncidentModal({
   open,
@@ -242,7 +242,7 @@ export function IncidentModal({
     <dialog
       ref={dialogRef}
       aria-labelledby="incident-modal-title"
-      className="panel-3d m-auto max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl backdrop:bg-slate-950/50 backdrop:backdrop-blur-xs"
+      className="panel-3d m-auto max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl backdrop:bg-slate-950/50 backdrop:backdrop-blur-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
       onClose={() => {
         if (open) onOpenChange(false)
       }}
@@ -262,12 +262,12 @@ export function IncidentModal({
         pressedOutsideRef.current = false
       }}
     >
-      <div className="flex items-center justify-between gap-4 border-b border-slate-200 pb-3">
+      <div className="flex items-center justify-between gap-4 border-b border-slate-200 pb-3 dark:border-slate-700">
         <div>
-          <h2 id="incident-modal-title" className="font-display text-lg font-bold text-slate-900">
+          <h2 id="incident-modal-title" className="font-display text-lg font-bold text-slate-900 dark:text-white">
             Incidencias y disponibilidad de caminos
           </h2>
-          <p className="mt-0.5 text-xs font-medium text-slate-600">
+          <p className="mt-0.5 text-xs font-medium text-slate-600 dark:text-slate-300">
             🛣️ Caminos habilitados: <strong>{pathStats.available}</strong> de{' '}
             <strong>{pathStats.total}</strong> · ⛔ <strong>{pathStats.closed}</strong> tramos
             cerrados por incidencias
@@ -277,7 +277,7 @@ export function IncidentModal({
           type="button"
           autoFocus
           onClick={() => onOpenChange(false)}
-          className="btn-3d min-h-10 rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9]"
+          className="btn-3d min-h-10 rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
         >
           Cerrar
         </button>
@@ -287,7 +287,7 @@ export function IncidentModal({
         <div
           role="status"
           aria-live="polite"
-          className="card-3d mt-3 rounded-2xl border border-emerald-300 bg-emerald-50 p-3 text-sm font-semibold text-emerald-950"
+          className="mt-3 rounded-2xl border border-emerald-300 bg-emerald-50 p-3 text-sm font-semibold text-emerald-950 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-100"
         >
           ✓ {statusMessage}
         </div>
@@ -296,7 +296,7 @@ export function IncidentModal({
       {formError && (
         <div
           role="alert"
-          className="card-3d mt-3 rounded-2xl border border-red-200 bg-red-50/90 p-3 text-sm font-medium text-red-950"
+          className="mt-3 rounded-2xl border border-red-200 bg-red-50/90 p-3 text-sm font-medium text-red-950 shadow-sm dark:border-red-800 dark:bg-red-950/70 dark:text-red-100"
         >
           <span aria-hidden="true">⚠ </span>
           {formError}
@@ -304,20 +304,20 @@ export function IncidentModal({
       )}
 
       <section aria-labelledby="active-incidents-heading" className="mt-4">
-        <h3 id="active-incidents-heading" className="font-display text-sm font-bold text-slate-900">
+        <h3 id="active-incidents-heading" className="font-display text-sm font-bold text-slate-900 dark:text-white">
           Incidencias activas ({activeIncidents.length})
         </h3>
         {loadingIncidents && activeIncidents.length === 0 ? (
-          <p className="mt-2 text-sm text-slate-600">Cargando incidencias…</p>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">Cargando incidencias…</p>
         ) : listError && activeIncidents.length === 0 ? (
           <div
             role="alert"
-            className="mt-2 rounded-2xl border border-red-200 bg-red-50/90 p-2.5 text-sm text-red-950"
+            className="mt-2 rounded-2xl border border-red-200 bg-red-50/90 p-2.5 text-sm text-red-950 dark:border-red-800 dark:bg-red-950/70 dark:text-red-100"
           >
             {listError.message}
           </div>
         ) : activeIncidents.length === 0 ? (
-          <p className="mt-2 text-sm text-slate-600">
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
             No hay incidencias activas. Todos los caminos pavimentados y ascensores están operativos.
           </p>
         ) : (
@@ -330,14 +330,14 @@ export function IncidentModal({
               return (
                 <li
                   key={inc.id}
-                  className="card-3d flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5 text-sm"
+                  className="card-3d flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5 text-sm dark:border-slate-700 dark:bg-slate-800/80"
                 >
                   <div className="grid gap-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span
                         className={
                           inc.severity === 'blocking'
-                            ? 'pill-3d rounded-full border border-red-200 bg-red-50 px-2.5 py-0.5 text-xs font-bold text-red-900'
+                            ? 'pill-3d rounded-full border border-red-200 bg-red-50 px-2.5 py-0.5 text-xs font-bold text-red-900 dark:border-red-800 dark:bg-red-950/80 dark:text-red-200'
                             : 'pill-3d rounded-full bg-amber-300 px-2.5 py-0.5 text-xs font-bold text-slate-900'
                         }
                       >
@@ -346,19 +346,19 @@ export function IncidentModal({
                         </span>
                         {inc.severity === 'blocking' ? 'Bloqueante' : 'Advertencia'}
                       </span>
-                      <strong className="text-slate-900">{targetLabel}</strong>
-                      <span className="text-xs text-slate-600">
+                      <strong className="text-slate-900 dark:text-white">{targetLabel}</strong>
+                      <span className="text-xs text-slate-600 dark:text-slate-300">
                         ({CONFLICT_LABELS[inc.conflict_type] ?? inc.conflict_type})
                       </span>
                     </div>
-                    <p className="text-slate-700">{inc.description}</p>
+                    <p className="text-slate-700 dark:text-slate-200">{inc.description}</p>
                   </div>
                   <button
                     type="button"
                     aria-label={`Resolver: ${inc.description}`}
                     disabled={updateIncident.isPending}
                     onClick={() => handleResolve(inc)}
-                    className="btn-3d min-h-10 shrink-0 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-1.5 text-xs font-bold text-emerald-950 transition-colors hover:bg-emerald-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] disabled:opacity-50"
+                    className="btn-3d-primary min-h-10 shrink-0 rounded-xl border border-emerald-300 bg-emerald-50 px-3.5 py-1.5 text-xs font-bold text-emerald-950 transition-colors hover:bg-emerald-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] disabled:opacity-50 dark:border-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-200 dark:hover:bg-emerald-900/80"
                   >
                     ✓ Resolver y habilitar
                   </button>
@@ -371,12 +371,12 @@ export function IncidentModal({
 
       <section
         aria-labelledby="report-incident-heading"
-        className="mt-6 border-t border-slate-200 pt-4"
+        className="mt-6 border-t border-slate-200 pt-4 dark:border-slate-700"
       >
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3
             id="report-incident-heading"
-            className="font-display text-sm font-bold text-slate-900"
+            className="font-display text-sm font-bold text-slate-900 dark:text-white"
           >
             Reportar nueva incidencia o corte de camino
           </h3>
@@ -384,7 +384,7 @@ export function IncidentModal({
             <button
               type="button"
               onClick={onRequireAuth}
-              className="text-xs font-semibold text-indigo-700 underline hover:text-indigo-900"
+              className="text-xs font-semibold text-indigo-700 underline hover:text-indigo-900 dark:text-indigo-300 dark:hover:text-indigo-200"
             >
               O iniciar sesión con cuenta propia
             </button>
@@ -398,7 +398,7 @@ export function IncidentModal({
           className="mt-3 grid gap-3"
         >
           <fieldset className="grid gap-1">
-            <legend className="text-xs font-semibold text-slate-700">
+            <legend className="text-xs font-semibold text-slate-700 dark:text-slate-200">
               Tipo de elemento afectado
             </legend>
             <div className="flex flex-wrap gap-4 pt-1">
@@ -416,7 +416,7 @@ export function IncidentModal({
                   }}
                   className="size-4 accent-[#DC2626]"
                 />
-                <label htmlFor="target-type-edge" className="text-sm font-medium text-slate-800">
+                <label htmlFor="target-type-edge" className="text-sm font-medium text-slate-800 dark:text-slate-100">
                   🛣️ Tramo / Camino pavimentado / Rampa
                 </label>
               </div>
@@ -434,7 +434,7 @@ export function IncidentModal({
                   }}
                   className="size-4 accent-[#DC2626]"
                 />
-                <label htmlFor="target-type-node" className="text-sm font-medium text-slate-800">
+                <label htmlFor="target-type-node" className="text-sm font-medium text-slate-800 dark:text-slate-100">
                   📍 Punto / Nodo (ascensor, plaza, acceso, aula)
                 </label>
               </div>
@@ -442,7 +442,7 @@ export function IncidentModal({
           </fieldset>
 
           <div className="grid gap-1">
-            <label htmlFor="incident-target-select" className="text-xs font-semibold text-slate-700">
+            <label htmlFor="incident-target-select" className="text-xs font-semibold text-slate-700 dark:text-slate-200">
               {targetType === 'node' ? 'Nodo o acceso afectado' : 'Camino pavimentado o tramo afectado'} *
             </label>
             <select
@@ -469,7 +469,7 @@ export function IncidentModal({
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="grid gap-1">
-              <label htmlFor="incident-conflict-type" className="text-xs font-semibold text-slate-700">
+              <label htmlFor="incident-conflict-type" className="text-xs font-semibold text-slate-700 dark:text-slate-200">
                 Tipo de conflicto *
               </label>
               <select
@@ -489,7 +489,7 @@ export function IncidentModal({
             </div>
 
             <div className="grid gap-1">
-              <label htmlFor="incident-severity" className="text-xs font-semibold text-slate-700">
+              <label htmlFor="incident-severity" className="text-xs font-semibold text-slate-700 dark:text-slate-200">
                 Severidad *
               </label>
               <select
@@ -507,10 +507,10 @@ export function IncidentModal({
           </div>
 
           <div className="grid gap-1">
-            <label htmlFor="incident-description" className="text-xs font-semibold text-slate-700">
+            <label htmlFor="incident-description" className="text-xs font-semibold text-slate-700 dark:text-slate-200">
               Descripción *
             </label>
-            <span id="incident-description-hint" className="text-xs text-slate-500">
+            <span id="incident-description-hint" className="text-xs text-slate-500 dark:text-slate-400">
               Describe el bloqueo o desperfecto (entre 3 y 280 caracteres).
             </span>
             <textarea
@@ -542,7 +542,7 @@ export function IncidentModal({
             <button
               type="button"
               onClick={() => onOpenChange(false)}
-              className="btn-3d min-h-10 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9]"
+              className="btn-3d min-h-10 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
             >
               Cancelar
             </button>

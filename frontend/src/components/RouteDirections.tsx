@@ -3,38 +3,38 @@ import type { ApiError } from '@/api/client'
 import type { CalculateRouteResponse, EdgeType } from '@/api/types'
 
 const softPillClass =
-  'pill-3d inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700'
+  'pill-3d inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200'
 
 const EDGE_STEP_META: Record<EdgeType, { icon: string; label: string; pillClass: string }> = {
   elevator: {
     icon: '🛗',
     label: 'Ascensor',
     pillClass:
-      'pill-3d inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-800',
+      'pill-3d inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-800 dark:border-indigo-800 dark:bg-indigo-950/80 dark:text-indigo-200',
   },
   stairs: {
     icon: '🪜',
     label: 'Escaleras',
     pillClass:
-      'pill-3d inline-flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-900',
+      'pill-3d inline-flex items-center gap-1 rounded-full border border-amber-200 bg-amber-50 px-2.5 py-0.5 text-xs font-semibold text-amber-900 dark:border-amber-800 dark:bg-amber-950/80 dark:text-amber-200',
   },
   ramp: {
     icon: '♿',
     label: 'Rampa',
     pillClass:
-      'pill-3d inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800',
+      'pill-3d inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-200',
   },
   corridor: {
     icon: '🏛',
     label: 'Pasillo',
     pillClass:
-      'pill-3d inline-flex items-center gap-1 rounded-full bg-sky-50 px-2.5 py-0.5 text-xs font-semibold text-sky-900',
+      'pill-3d inline-flex items-center gap-1 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-semibold text-sky-900 dark:border-sky-800 dark:bg-sky-950/80 dark:text-sky-200',
   },
   outdoor: {
     icon: '☀',
     label: 'Exterior',
     pillClass:
-      'pill-3d inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700',
+      'pill-3d inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200',
   },
 }
 
@@ -197,15 +197,15 @@ export function RouteDirections({
   let body
   if (reachedGoal && !route) {
     body = (
-      <div className="card-3d rounded-2xl border border-emerald-300 bg-emerald-50 p-4 text-emerald-950">
+      <div className="rounded-2xl border border-emerald-300 bg-emerald-50 p-4 text-emerald-950 shadow-sm dark:border-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-100">
         <p className="font-display text-sm font-bold">¡Llegaste a tu destino!</p>
-        <p className="mt-1 text-xs text-emerald-900">
+        <p className="mt-1 text-xs text-emerald-900 dark:text-emerald-200">
           El recorrido finalizó en la meta seleccionada. Elige un nuevo destino para iniciar otra ruta.
         </p>
       </div>
     )
   } else if (isLoading) {
-    body = <p className="text-slate-600">Calculando ruta accesible…</p>
+    body = <p className="text-slate-600 dark:text-slate-300">Calculando ruta accesible…</p>
   } else if (error) {
     const rawIds = error.details?.blocking_incident_ids
     const ids = Array.isArray(rawIds) ? rawIds.map(String) : []
@@ -213,7 +213,7 @@ export function RouteDirections({
     body = (
       <div
         role="alert"
-        className="card-3d rounded-2xl border border-red-200 bg-red-50/90 p-3.5 text-red-950"
+        className="rounded-2xl border border-red-200 bg-red-50/90 p-3.5 text-red-950 shadow-sm dark:border-red-800 dark:bg-red-950/70 dark:text-red-100"
       >
         <p className="font-display font-bold">
           <span aria-hidden="true">⚠ </span>
@@ -233,7 +233,7 @@ export function RouteDirections({
     )
   } else if (!route) {
     body = (
-      <p className="rounded-2xl bg-slate-50 p-3 text-xs text-slate-600">
+      <p className="rounded-2xl border border-slate-200/80 bg-slate-50 p-3 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800/80 dark:text-slate-300">
         Selecciona tu ubicación actual y un destino en el mapa o en el panel para ver las indicaciones.
       </p>
     )
@@ -242,22 +242,22 @@ export function RouteDirections({
     const totalSteps = route.steps.length
     body = (
       <div className="grid gap-3">
-        <dl className="card-3d grid grid-cols-3 gap-2 rounded-2xl border border-slate-200/80 bg-slate-100/80 p-3 text-center">
+        <dl className="card-3d grid grid-cols-3 gap-2 rounded-2xl border border-slate-200/80 bg-slate-100/80 p-3 text-center dark:border-slate-700 dark:bg-slate-800/80">
           <div>
-            <dt className="text-xs text-slate-500">Distancia</dt>
-            <dd className="font-display text-base font-bold text-slate-900">
+            <dt className="text-xs text-slate-500 dark:text-slate-400">Distancia</dt>
+            <dd className="font-display text-base font-bold text-slate-900 dark:text-white">
               {m.total_distance_m} m
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-slate-500">Tiempo</dt>
-            <dd className="font-display text-base font-bold text-slate-900">
+            <dt className="text-xs text-slate-500 dark:text-slate-400">Tiempo</dt>
+            <dd className="font-display text-base font-bold text-slate-900 dark:text-white">
               {m.estimated_time_min} min
             </dd>
           </div>
           <div>
-            <dt className="text-xs text-slate-500">Pisos</dt>
-            <dd className="font-display text-base font-bold text-slate-900">
+            <dt className="text-xs text-slate-500 dark:text-slate-400">Pisos</dt>
+            <dd className="font-display text-base font-bold text-slate-900 dark:text-white">
               {m.floors_traversed.join(' / ')}
             </dd>
           </div>
@@ -265,7 +265,7 @@ export function RouteDirections({
 
         <ul className="flex flex-wrap gap-1.5" role="list" aria-label="Características de la ruta">
           {route.accessibility_verified && (
-            <li className="pill-3d inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-950">
+            <li className="pill-3d inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-200">
               <span aria-hidden="true">✓</span> Accesible sin escalones
             </li>
           )}
@@ -285,7 +285,7 @@ export function RouteDirections({
             </li>
           )}
           {route.weather_applied.rain_avoidance_active && (
-            <li className="pill-3d inline-flex items-center gap-1 rounded-full border border-sky-300 bg-sky-100 px-2.5 py-0.5 text-xs font-semibold text-sky-950">
+            <li className="pill-3d inline-flex items-center gap-1 rounded-full border border-sky-300 bg-sky-100 px-2.5 py-0.5 text-xs font-semibold text-sky-950 dark:border-sky-800 dark:bg-sky-950/80 dark:text-sky-200">
               <span aria-hidden="true">☂</span> Tramos techados
             </li>
           )}
@@ -295,7 +295,7 @@ export function RouteDirections({
           <div
             role="note"
             aria-labelledby="avoided-conflicts-heading"
-            className="card-3d rounded-2xl border border-red-200 bg-red-50/90 p-3 text-red-950"
+            className="rounded-2xl border border-red-200 bg-red-50/90 p-3 text-red-950 shadow-sm dark:border-red-800 dark:bg-red-950/70 dark:text-red-100"
           >
             <h3 id="avoided-conflicts-heading" className="font-display text-xs font-bold">
               <span aria-hidden="true">⚠ </span>Conflictos evitados (
@@ -313,7 +313,7 @@ export function RouteDirections({
         )}
 
         <ol
-          className="ml-3 grid gap-3 border-l-2 border-slate-200 pl-4"
+          className="ml-3 grid gap-3 border-l-2 border-slate-200 pl-4 dark:border-slate-700"
           role="list"
           aria-label="Pasos de la ruta"
         >
@@ -327,16 +327,16 @@ export function RouteDirections({
             const isEnd = idx === totalSteps - 1
             const isCurrentlySpoken = speakingStepOrder === s.order
             const markerClass = isStart
-              ? '-ml-7 grid size-6 shrink-0 place-items-center rounded-full bg-[#0EA5E9] font-display text-xs font-bold text-white ring-4 ring-white'
+              ? '-ml-7 grid size-6 shrink-0 place-items-center rounded-full bg-[#0EA5E9] font-display text-xs font-bold text-white ring-4 ring-white dark:ring-slate-900'
               : isEnd
-                ? '-ml-7 grid size-6 shrink-0 place-items-center rounded-full bg-amber-400 font-display text-xs font-bold text-slate-900 ring-4 ring-white'
-                : '-ml-7 grid size-6 shrink-0 place-items-center rounded-full bg-[#EF4444] font-display text-xs font-bold text-white ring-4 ring-white'
+                ? '-ml-7 grid size-6 shrink-0 place-items-center rounded-full bg-amber-400 font-display text-xs font-bold text-slate-900 ring-4 ring-white dark:ring-slate-900'
+                : '-ml-7 grid size-6 shrink-0 place-items-center rounded-full bg-[#EF4444] font-display text-xs font-bold text-white ring-4 ring-white dark:ring-slate-900'
             return (
               <li
                 key={s.order}
                 className={
                   isCurrentlySpoken
-                    ? 'relative grid gap-1 rounded-xl border border-sky-300 bg-sky-50/90 p-2 shadow-xs transition-colors'
+                    ? 'relative grid gap-1 rounded-xl border border-sky-300 bg-sky-50/90 p-2 shadow-xs transition-colors dark:border-sky-700 dark:bg-sky-950/60'
                     : 'relative grid gap-1 rounded-xl p-1 transition-colors'
                 }
               >
@@ -346,7 +346,7 @@ export function RouteDirections({
                   </span>
                   <div className="grid flex-1 gap-1">
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-sm leading-snug text-slate-800">{s.instruction}</p>
+                      <p className="text-sm leading-snug text-slate-800 dark:text-slate-100">{s.instruction}</p>
                       {speechAvailable && (
                         <button
                           type="button"
@@ -363,7 +363,7 @@ export function RouteDirections({
                           className={
                             isCurrentlySpoken
                               ? 'btn-3d-primary shrink-0 rounded-lg bg-[#0EA5E9] px-2 py-1 text-xs font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9]'
-                              : 'btn-3d shrink-0 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9]'
+                              : 'btn-3d shrink-0 rounded-lg border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
                           }
                         >
                           <span aria-hidden="true">{isCurrentlySpoken ? '⏹' : '🔊'}</span>
@@ -377,12 +377,12 @@ export function RouteDirections({
                         </span>
                       )}
                       {isStart && (
-                        <span className="pill-3d rounded-full bg-sky-100 px-2 py-0.5 text-xs font-semibold text-sky-900">
+                        <span className="pill-3d rounded-full border border-sky-200 bg-sky-100 px-2 py-0.5 text-xs font-semibold text-sky-900 dark:border-sky-800 dark:bg-sky-950/80 dark:text-sky-200">
                           Salida
                         </span>
                       )}
                       {isEnd && (
-                        <span className="pill-3d rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-950">
+                        <span className="pill-3d rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-950 dark:border-amber-800 dark:bg-amber-950/80 dark:text-amber-200">
                           Meta
                         </span>
                       )}
@@ -400,7 +400,7 @@ export function RouteDirections({
           })}
         </ol>
 
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-slate-500 dark:text-slate-400">
           Algoritmo {g.algorithm_used === 'astar' ? 'A*' : 'Dijkstra'} / Peso {g.total_weight} /{' '}
           {g.nodes_explored} nodos explorados
         </p>
@@ -413,7 +413,7 @@ export function RouteDirections({
       <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
         <h2
           id="route-directions-title"
-          className="font-display text-sm font-bold text-slate-900"
+          className="font-display text-sm font-bold text-slate-900 dark:text-white"
         >
           Indicaciones paso a paso
         </h2>
@@ -444,8 +444,8 @@ export function RouteDirections({
                 aria-pressed={autoVoice}
                 className={
                   autoVoice
-                    ? 'pill-3d rounded-full border border-indigo-300 bg-indigo-100 px-2.5 py-1 text-xs font-semibold text-indigo-900 transition-colors hover:bg-indigo-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600'
-                    : 'pill-3d rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9]'
+                    ? 'pill-3d rounded-full border border-indigo-300 bg-indigo-100 px-2.5 py-1 text-xs font-semibold text-indigo-900 transition-colors hover:bg-indigo-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-600 dark:border-indigo-700 dark:bg-indigo-950/80 dark:text-indigo-200 dark:hover:bg-indigo-900/80'
+                    : 'pill-3d rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700'
                 }
               >
                 {autoVoice ? '🔈 Auto-voz' : '🔇 Auto-voz'}

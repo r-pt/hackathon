@@ -24,6 +24,7 @@ import { FlagBadgeIcon, PersonBadgeIcon, RouteControls } from '@/components/Rout
 import { RouteDirections, speakSpanish, stopSpeech } from '@/components/RouteDirections'
 import { IncidentModal } from '@/components/IncidentModal'
 import { AuthModal } from '@/components/AuthModal'
+import { EmergencyContacts } from '@/components/EmergencyContacts'
 
 type FloorView = 'stacked' | number
 
@@ -520,16 +521,16 @@ export function App() {
         <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-2.5">
           <div className="flex flex-wrap items-center gap-2.5">
             <div className="flex items-center gap-2">
-              <h1 className="font-display text-lg font-bold tracking-tight">
+              <h1 className="font-display text-lg font-bold tracking-tight text-slate-900 dark:text-white">
                 RutaCampus
               </h1>
-              <span className="pill-3d rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-800">
+              <span className="pill-3d rounded-full border border-indigo-200 bg-indigo-50 px-2.5 py-0.5 text-xs font-semibold text-indigo-800 dark:border-indigo-700 dark:bg-indigo-950/80 dark:text-indigo-200">
                 {mapQuery.data?.campus_name ?? 'UTFSM Casa Central'}
               </span>
             </div>
 
             <div
-              className="pill-3d flex flex-wrap items-center gap-2 rounded-full border border-slate-200 bg-slate-50/90 px-3 py-1 text-xs"
+              className="pill-3d flex flex-wrap items-center gap-2 rounded-full border border-slate-200 bg-slate-50/90 px-3 py-1 text-xs dark:border-slate-700 dark:bg-slate-800/90"
               aria-label="Ubicación actual y destino"
             >
               <span className="inline-flex items-center gap-1.5">
@@ -537,11 +538,11 @@ export function App() {
                   <PersonBadgeIcon />
                   <span>Tú</span>
                 </span>
-                <span className="font-medium text-slate-800">
+                <span className="font-medium text-slate-800 dark:text-slate-100">
                   {selectedOriginName ?? 'Elige origen'}
                 </span>
               </span>
-              <span aria-hidden="true" className="text-slate-400">
+              <span aria-hidden="true" className="text-slate-400 dark:text-slate-500">
                 →
               </span>
               <span className="inline-flex items-center gap-1.5">
@@ -549,7 +550,7 @@ export function App() {
                   <FlagBadgeIcon />
                   <span>Meta</span>
                 </span>
-                <span className="font-medium text-slate-800">
+                <span className="font-medium text-slate-800 dark:text-slate-100">
                   {selectedDestName ?? 'Elige destino'}
                 </span>
               </span>
@@ -559,7 +560,7 @@ export function App() {
               <button
                 type="button"
                 onClick={() => setIncidentModalOpen(true)}
-                className="pill-3d inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-950 transition-colors hover:bg-emerald-100"
+                className="pill-3d inline-flex items-center gap-1.5 rounded-full border border-emerald-300 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-950 transition-colors hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-200 dark:hover:bg-emerald-900/80"
                 title="Ver disponibilidad de caminos pavimentados e incidencias"
               >
                 <span>
@@ -575,7 +576,7 @@ export function App() {
             )}
 
             {isGpsLive && (
-              <span className="pill-3d inline-flex items-center gap-1.5 rounded-full border border-sky-300 bg-sky-100 px-2.5 py-0.5 text-xs font-bold text-sky-900">
+              <span className="pill-3d inline-flex items-center gap-1.5 rounded-full border border-sky-300 bg-sky-100 px-2.5 py-0.5 text-xs font-bold text-sky-900 dark:border-sky-700 dark:bg-sky-950/80 dark:text-sky-200">
                 <span
                   aria-hidden="true"
                   className="gps-radar-dot relative inline-block size-2 rounded-full bg-[#0EA5E9]"
@@ -588,15 +589,15 @@ export function App() {
           <div className="flex flex-wrap items-center gap-2">
             {weatherQuery.data && (
               <div
-                className="pill-3d flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100/90 px-3 py-1 text-xs font-medium text-slate-800"
+                className="pill-3d flex items-center gap-1.5 rounded-full border border-slate-200 bg-slate-100/90 px-3 py-1 text-xs font-medium text-slate-800 dark:border-slate-700 dark:bg-slate-800/90 dark:text-slate-100"
                 aria-label="Clima actual en el campus"
               >
                 <span>{weatherQuery.data.temperature_c.toFixed(1)} °C</span>
                 <span
                   className={
                     weatherQuery.data.rain_alert || simulateRain
-                      ? 'rounded-full bg-sky-200 px-2 py-0.5 font-bold text-sky-950'
-                      : 'font-semibold text-emerald-700'
+                      ? 'rounded-full bg-sky-200 px-2 py-0.5 font-bold text-sky-950 dark:bg-sky-900 dark:text-sky-100'
+                      : 'font-semibold text-emerald-700 dark:text-emerald-300'
                   }
                 >
                   {weatherQuery.data.rain_alert || simulateRain ? 'Lluvia activa' : 'Despejado'}
@@ -604,11 +605,19 @@ export function App() {
               </div>
             )}
 
+            <a
+              href="#emergency-contacts"
+              className="btn-3d inline-flex min-h-9 items-center gap-1 rounded-full border border-red-300 bg-red-50 px-3 py-1 text-xs font-bold text-red-900 transition-all duration-150 hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] dark:border-red-800 dark:bg-red-950/80 dark:text-red-200 dark:hover:bg-red-900/80"
+            >
+              <span aria-hidden="true">🚨</span>
+              <span>Emergencias</span>
+            </a>
+
             <button
               type="button"
               onClick={() => setDarkMode((prev) => !prev)}
               aria-pressed={darkMode}
-              className="btn-3d min-h-9 rounded-full border border-slate-300 bg-white px-3.5 py-1 text-xs font-semibold text-slate-800 transition-all duration-150 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9]"
+              className="btn-3d min-h-9 rounded-full border border-slate-300 bg-white px-3.5 py-1 text-xs font-semibold text-slate-800 transition-all duration-150 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
             >
               {darkMode ? '☀️ Modo Claro' : '🌙 Modo Oscuro'}
             </button>
@@ -622,7 +631,7 @@ export function App() {
               }}
               disabled={isRefreshingGraph}
               aria-busy={isRefreshingGraph}
-              className="btn-3d min-h-9 rounded-full border border-slate-300 bg-white px-3.5 py-1 text-xs font-semibold text-slate-800 transition-all duration-150 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn-3d min-h-9 rounded-full border border-slate-300 bg-white px-3.5 py-1 text-xs font-semibold text-slate-800 transition-all duration-150 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
             >
               <span aria-hidden="true">↻ </span>
               {isRefreshingGraph ? 'Actualizando…' : 'Actualizar'}
@@ -634,7 +643,7 @@ export function App() {
               className={
                 activeIncidentCount > 0
                   ? 'btn-3d-primary min-h-9 rounded-full bg-[#DC2626] px-3.5 py-1 text-xs font-semibold text-white transition-all duration-150 hover:bg-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626]'
-                  : 'btn-3d min-h-9 rounded-full border border-slate-300 bg-slate-100 px-3.5 py-1 text-xs font-semibold text-slate-800 transition-all duration-150 hover:bg-slate-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9]'
+                  : 'btn-3d min-h-9 rounded-full border border-slate-300 bg-slate-100 px-3.5 py-1 text-xs font-semibold text-slate-800 transition-all duration-150 hover:bg-slate-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700'
               }
             >
               Incidencias ({activeIncidentCount})
@@ -647,7 +656,7 @@ export function App() {
                   setAuthToken(null)
                   queryClient.removeQueries({ queryKey: queryKeys.me() })
                 }}
-                className="btn-3d min-h-9 rounded-full border border-slate-300 bg-white px-3.5 py-1 text-xs font-semibold text-slate-800 transition-all duration-150 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9]"
+                className="btn-3d min-h-9 rounded-full border border-slate-300 bg-white px-3.5 py-1 text-xs font-semibold text-slate-800 transition-all duration-150 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
               >
                 {meQuery.data?.full_name ? `Salir (${meQuery.data.full_name})` : 'Cerrar sesión'}
               </button>
@@ -670,7 +679,7 @@ export function App() {
           aria-live="polite"
           className="mx-auto mt-3 flex w-full max-w-[1440px] items-center justify-between gap-3 px-4"
         >
-          <div className="card-3d flex w-full items-center justify-between gap-3 rounded-2xl border border-sky-300 bg-sky-50 px-4 py-2.5 text-xs font-semibold text-sky-950">
+          <div className="card-3d flex w-full items-center justify-between gap-3 rounded-2xl border border-sky-300 bg-sky-50 px-4 py-2.5 text-xs font-semibold text-sky-950 dark:border-sky-800 dark:bg-sky-950/70 dark:text-sky-100">
             <span>
               🛣️ {incidentNotice} ({pathAvailability.availableEdges}/
               {pathAvailability.totalEdges} caminos disponibles)
@@ -678,7 +687,7 @@ export function App() {
             <button
               type="button"
               onClick={() => setIncidentNotice(null)}
-              className="rounded-lg border border-sky-300 bg-white px-2.5 py-1 text-xs font-bold text-sky-900 hover:bg-sky-100"
+              className="rounded-lg border border-sky-300 bg-white px-2.5 py-1 text-xs font-bold text-sky-900 hover:bg-sky-100 dark:border-sky-700 dark:bg-slate-800 dark:text-sky-200 dark:hover:bg-slate-700"
             >
               Entendido
             </button>
@@ -692,13 +701,13 @@ export function App() {
       >
         <section
           aria-label="Mapa interactivo del campus"
-          className="panel-3d flex min-h-[560px] flex-col rounded-3xl border border-slate-200/90 bg-white p-3 lg:min-h-[calc(100vh-6.5rem)]"
+          className="panel-3d flex min-h-[560px] flex-col rounded-3xl border border-slate-200/90 bg-white p-3 dark:border-slate-700/90 dark:bg-slate-900 lg:min-h-[calc(100vh-6.5rem)]"
         >
           {mapQuery.isLoading && (
             <div
               role="status"
               aria-live="polite"
-              className="grid flex-1 place-items-center p-6 text-sm font-medium text-slate-600"
+              className="grid flex-1 place-items-center p-6 text-sm font-medium text-slate-600 dark:text-slate-300"
             >
               Cargando mapa interactivo del campus…
             </div>
@@ -707,7 +716,7 @@ export function App() {
           {mapQuery.error && (
             <div
               role="alert"
-              className="card-3d my-auto rounded-2xl border border-red-200 bg-red-50/90 p-4 text-sm text-red-950"
+              className="card-3d my-auto rounded-2xl border border-red-200 bg-red-50/90 p-4 text-sm text-red-950 dark:border-red-800 dark:bg-red-950/70 dark:text-red-100"
             >
               <p className="font-display font-bold">Error al cargar el mapa del campus</p>
               <p>{mapQuery.error.message}</p>
@@ -732,8 +741,8 @@ export function App() {
           aria-label="Panel de control e indicaciones de ruta"
           className="flex flex-col gap-3.5"
         >
-          <div className="panel-3d rounded-2xl border border-slate-200/90 bg-white p-4">
-            <h2 className="font-display mb-2.5 text-sm font-bold text-slate-900">
+          <div className="panel-3d rounded-2xl border border-slate-200/90 bg-white p-4 dark:border-slate-700/90 dark:bg-slate-900">
+            <h2 className="font-display mb-2.5 text-sm font-bold text-slate-900 dark:text-white">
               Configurar ruta
             </h2>
             <RouteControls
@@ -759,7 +768,7 @@ export function App() {
             />
           </div>
 
-          <div className="panel-3d rounded-2xl border border-slate-200/90 bg-white p-4">
+          <div className="panel-3d rounded-2xl border border-slate-200/90 bg-white p-4 dark:border-slate-700/90 dark:bg-slate-900">
             <RouteDirections
               route={routeQuery.data}
               error={routeQuery.error}
@@ -775,6 +784,8 @@ export function App() {
               }
             />
           </div>
+
+          <EmergencyContacts />
         </aside>
       </main>
 

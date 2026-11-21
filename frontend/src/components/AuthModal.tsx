@@ -9,7 +9,7 @@ export interface AuthModalProps {
 const DEMO_TOKEN = 'demo-student-token'
 
 const fieldClass =
-  'min-h-10 w-full rounded-xl border border-zinc-300 bg-zinc-50/80 px-3 py-2 text-sm text-zinc-900 transition-colors hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626]'
+  'min-h-10 w-full rounded-xl border border-slate-300 bg-slate-50/90 px-3 py-2 text-sm text-slate-900 transition-colors hover:bg-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:hover:bg-slate-800'
 
 export function AuthModal({ open, onOpenChange, onAuthenticated }: AuthModalProps) {
   const dialogRef = useRef<HTMLDialogElement | null>(null)
@@ -121,7 +121,7 @@ export function AuthModal({ open, onOpenChange, onAuthenticated }: AuthModalProp
     <dialog
       ref={dialogRef}
       aria-labelledby="auth-modal-title"
-      className="panel-3d m-auto w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl backdrop:bg-slate-950/50 backdrop:backdrop-blur-xs"
+      className="panel-3d m-auto w-full max-w-md rounded-3xl border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl backdrop:bg-slate-950/50 backdrop:backdrop-blur-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
       onClose={() => {
         if (open) onOpenChange(false)
       }}
@@ -141,27 +141,27 @@ export function AuthModal({ open, onOpenChange, onAuthenticated }: AuthModalProp
         pressedOutsideRef.current = false
       }}
     >
-      <div className="flex items-center justify-between gap-4 border-b border-zinc-200 pb-3">
-        <h2 id="auth-modal-title" className="font-display text-lg font-bold text-zinc-900">
+      <div className="flex items-center justify-between gap-4 border-b border-slate-200 pb-3 dark:border-slate-700">
+        <h2 id="auth-modal-title" className="font-display text-lg font-bold text-slate-900 dark:text-white">
           Iniciar sesión
         </h2>
         <button
           type="button"
           onClick={() => onOpenChange(false)}
-          className="min-h-10 rounded-xl border border-zinc-300 bg-white px-3.5 py-1.5 text-sm font-semibold text-zinc-800 transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626]"
+          className="btn-3d min-h-10 rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
         >
           Cerrar
         </button>
       </div>
 
-      <div className="card-3d mt-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5">
-        <p className="text-xs text-slate-600">
+      <div className="card-3d mt-4 rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5 dark:border-slate-700 dark:bg-slate-800/80">
+        <p className="text-xs text-slate-600 dark:text-slate-300">
           Para pruebas de vista previa sin credenciales de Supabase activas:
         </p>
         <button
           type="button"
           onClick={handleDemoLogin}
-          className="btn-3d mt-2 min-h-10 w-full rounded-xl bg-[#FACC15] px-4 py-2 font-display text-sm font-bold text-slate-900 transition-colors hover:bg-[#FACC15]/85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626]"
+          className="btn-3d-primary mt-2 min-h-10 w-full rounded-xl bg-[#FACC15] px-4 py-2 font-display text-sm font-bold text-slate-900 transition-colors hover:bg-[#FACC15]/90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626]"
         >
           Usar cuenta demo (sin Supabase)
         </button>
@@ -171,12 +171,12 @@ export function AuthModal({ open, onOpenChange, onAuthenticated }: AuthModalProp
         method="post"
         aria-labelledby="auth-modal-title"
         onSubmit={(e) => void handleSubmit(e)}
-        className="mt-4 grid gap-3 border-t border-zinc-200 pt-4"
+        className="mt-4 grid gap-3 border-t border-slate-200 pt-4 dark:border-slate-700"
       >
         {errorMessage && (
           <div
             role="alert"
-            className="rounded-2xl border border-red-200 bg-red-50/90 p-3 text-sm font-medium text-red-950"
+            className="rounded-2xl border border-red-200 bg-red-50/90 p-3 text-sm font-medium text-red-950 dark:border-red-800 dark:bg-red-950/70 dark:text-red-100"
           >
             <span aria-hidden="true">⚠ </span>
             {errorMessage}
@@ -184,7 +184,7 @@ export function AuthModal({ open, onOpenChange, onAuthenticated }: AuthModalProp
         )}
 
         <div className="grid gap-1">
-          <label htmlFor="auth-email" className="text-xs font-semibold text-zinc-700">
+          <label htmlFor="auth-email" className="text-xs font-semibold text-slate-700 dark:text-slate-200">
             Correo electrónico *
           </label>
           <input
@@ -209,14 +209,14 @@ export function AuthModal({ open, onOpenChange, onAuthenticated }: AuthModalProp
 
         <div className="grid gap-1">
           <div className="flex items-center justify-between gap-2">
-            <label htmlFor="auth-password" className="text-xs font-semibold text-zinc-700">
+            <label htmlFor="auth-password" className="text-xs font-semibold text-slate-700 dark:text-slate-200">
               Contraseña *
             </label>
             <button
               type="button"
               aria-pressed={showPassword}
               onClick={() => setShowPassword((v) => !v)}
-              className="rounded-lg px-2 py-1 text-xs font-semibold text-zinc-700 underline hover:text-zinc-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626]"
+              className="rounded-lg px-2 py-1 text-xs font-semibold text-slate-700 underline hover:text-slate-900 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] dark:text-slate-300 dark:hover:text-white"
             >
               {showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
             </button>
@@ -241,7 +241,7 @@ export function AuthModal({ open, onOpenChange, onAuthenticated }: AuthModalProp
           <button
             type="button"
             onClick={() => onOpenChange(false)}
-            className="min-h-10 rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 transition-colors hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626]"
+            className="btn-3d min-h-10 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
           >
             Cancelar
           </button>

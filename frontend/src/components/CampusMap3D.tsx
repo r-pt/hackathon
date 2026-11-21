@@ -2523,7 +2523,9 @@ export function CampusMap3D({
             aria-pressed={stacked}
             onClick={() => handleFloorSelect('stacked')}
             className={`rounded-full px-3 py-1 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] ${
-              stacked ? 'btn-3d-primary bg-slate-900 text-white' : 'btn-3d bg-white text-slate-700 hover:bg-slate-50'
+              stacked
+                ? 'btn-3d-primary bg-slate-900 text-white dark:bg-sky-600 dark:text-white'
+                : 'btn-3d bg-white text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700'
             }`}
           >
             Ambos pisos
@@ -2537,7 +2539,9 @@ export function CampusMap3D({
                 aria-pressed={active}
                 onClick={() => handleFloorSelect(fl)}
                 className={`rounded-full px-3 py-1 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] ${
-                  active ? 'btn-3d-primary bg-slate-900 text-white' : 'btn-3d bg-white text-slate-700 hover:bg-slate-50'
+                  active
+                    ? 'btn-3d-primary bg-slate-900 text-white dark:bg-sky-600 dark:text-white'
+                    : 'btn-3d bg-white text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700'
                 }`}
               >
                 Piso {fl}
@@ -2576,7 +2580,7 @@ export function CampusMap3D({
               onClick={() => setViewMode('iso')}
               className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-all duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] ${
                 viewMode === 'iso'
-                  ? 'bg-slate-900 text-white shadow-xs'
+                  ? 'bg-slate-900 text-white shadow-xs dark:bg-sky-600 dark:text-white'
                   : isDark
                     ? 'text-slate-300 hover:text-white'
                     : 'text-slate-600 hover:text-slate-900'
@@ -2607,7 +2611,7 @@ export function CampusMap3D({
               type="button"
               onClick={() => setRotation((r) => (r - 90 + 360) % 360)}
               aria-label="Rotar mapa 90 grados a la izquierda"
-              className="btn-3d rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-[#DC2626]"
+              className="btn-3d rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-[#DC2626] dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
             >
               ↺ -90°
             </button>
@@ -2615,7 +2619,7 @@ export function CampusMap3D({
               type="button"
               onClick={() => setRotation((r) => (r + 90) % 360)}
               aria-label="Rotar mapa 90 grados a la derecha"
-              className="btn-3d rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-[#DC2626]"
+              className="btn-3d rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-800 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-[#DC2626] dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
             >
               ↻ +90°
             </button>
@@ -2628,7 +2632,7 @@ export function CampusMap3D({
             className={`rounded-full px-3 py-1 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] ${
               showRoofs
                 ? 'btn-3d-primary bg-indigo-600 text-white hover:bg-indigo-700'
-                : 'btn-3d bg-white text-slate-700 hover:bg-slate-50'
+                : 'btn-3d bg-white text-slate-700 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700'
             }`}
           >
             🏠 Techos 3D
@@ -2640,8 +2644,8 @@ export function CampusMap3D({
             onClick={() => setShowLabels((s) => !s)}
             className={`btn-3d rounded-full px-3 py-1 text-xs font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] ${
               showLabels
-                ? 'bg-slate-200/90 text-slate-900 hover:bg-slate-300/80'
-                : 'bg-white text-slate-600 hover:bg-slate-50'
+                ? 'bg-slate-200/90 text-slate-900 hover:bg-slate-300/80 dark:bg-slate-700 dark:text-slate-100 dark:hover:bg-slate-600'
+                : 'bg-white text-slate-600 hover:bg-slate-50 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
             }`}
           >
             {showLabels ? 'Ocultar nombres' : 'Mostrar nombres'}
@@ -3029,7 +3033,7 @@ export function CampusMap3D({
         {(routePolylines.length > 0 || routeVerticals.length > 0) && (
           <button
             type="button"
-            className="btn-3d ml-auto rounded-full bg-white px-3 py-0.5 font-semibold text-slate-800 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626]"
+            className="btn-3d ml-auto rounded-full bg-white px-3 py-0.5 font-semibold text-slate-800 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
             onClick={() => setAnimating((a) => !a)}
           >
             {animating ? 'Pausar animación' : 'Reanudar animación'}
