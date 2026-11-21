@@ -10,16 +10,16 @@
 BEGIN;
 
 -- -----------------------------------------------------------------------------
--- 1. Edificios (6 — UTFSM Casa Central, 1600x1050)
+-- 1. Edificios (6 — UTFSM Casa Central, 2200x1450)
 -- -----------------------------------------------------------------------------
 INSERT INTO public.buildings (id, name, x, y, width, height, floors, color)
 VALUES
-    ('bld-p', 'Edificio P (Federación)',   700,  60, 170, 100, 1, '#0891B2'),
-    ('bld-c', 'Edificio C (Placeres)',     690, 320, 180, 105, 1, '#4F46E5'),
-    ('bld-m', 'Edificio M (Informática)',  140, 420, 180, 115, 1, '#D97706'),
-    ('bld-b', 'Edificio B (Biblioteca)',   980, 520, 210, 120, 2, '#059669'),
-    ('bld-a', 'Edificio A (Ingeniería)',   520, 650, 210, 125, 2, '#2563EB'),
-    ('bld-f', 'Edificio F (Sur-Oriente)', 1180, 790, 190, 115, 1, '#7C3AED')
+    ('bld-p', 'Edificio P (Federación)',   980,   60, 200, 115, 1, '#0891B2'),
+    ('bld-c', 'Edificio C (Placeres)',     970,  380, 220, 120, 1, '#4F46E5'),
+    ('bld-m', 'Edificio M (Informática)',  140,  580, 220, 130, 1, '#D97706'),
+    ('bld-b', 'Edificio B (Biblioteca)',  1340,  690, 240, 140, 2, '#059669'),
+    ('bld-a', 'Edificio A (Ingeniería)',   680,  870, 240, 145, 2, '#2563EB'),
+    ('bld-f', 'Edificio F (Sur-Oriente)', 1660, 1070, 220, 130, 1, '#7C3AED')
 ON CONFLICT (id) DO UPDATE SET
     name   = EXCLUDED.name,
     x      = EXCLUDED.x,
@@ -36,26 +36,26 @@ INSERT INTO public.nodes (
     id, name, building, building_id, floor, node_type, x, y, z, is_destination, landmark
 )
 VALUES
-    ('cc-acceso-espana',    'Acceso Principal Av. España',                    'Exterior',             NULL,    1, 'entrance',  780, 955, 0, true,  'Escalinata y acceso sur desde Av. España'),
-    ('cc-edificio-a-p1',    'Edificio A — Hall Central (Piso 1)',             'Edificio A',           'bld-a', 1, 'corridor',  675, 720, 4, true,  'Patio central y accesos a aulas A'),
-    ('cc-ascensor-a-p1',    'Ascensor Edificio A (Piso 1)',                   'Edificio A',           'bld-a', 1, 'elevator',  575, 700, 4, false, 'Costado oeste del hall Edificio A'),
-    ('cc-ascensor-a-p2',    'Ascensor Edificio A (Piso 2)',                   'Edificio A',           'bld-a', 2, 'elevator',  575, 700, 8, true,  'Pasillo superior Edificio A'),
-    ('cc-edificio-b-p1',    'Edificio B — Patio Interior (Piso 1)',           'Edificio B',           'bld-b', 1, 'corridor', 1040, 580, 4, true,  'Claustro central del Edificio B'),
-    ('cc-ascensor-b-p1',    'Ascensor Edificio B (Piso 1)',                   'Edificio B',           'bld-b', 1, 'elevator', 1140, 580, 4, false, 'Ala oriente Edificio B'),
-    ('cc-ascensor-b-p2',    'Ascensor Edificio B (Piso 2)',                   'Edificio B',           'bld-b', 2, 'elevator', 1140, 580, 8, true,  'Conexión superior Edificio B hacia A y C'),
-    ('cc-edificio-c-p1',    'Edificio C — Acceso Norte (Av. Placeres)',       'Edificio C',           'bld-c', 1, 'entrance',  780, 370, 4, true,  'Frente a Avenida Placeres'),
-    ('cc-rampa-b-c',        'Rampa Accesible B–C',                            'Exterior',             NULL,    1, 'ramp',      910, 485, 4, false, 'Rampa techada entre Edificio B y Edificio C'),
-    ('cc-edificio-f',       'Edificio F (Piso 1)',                            'Edificio F',           'bld-f', 1, 'room',     1275, 845, 4, true,  'Jardines sector sur-oriente'),
-    ('cc-edificio-m',       'Edificio M (Informática)',                       'Edificio M',           'bld-m', 1, 'room',      230, 475, 4, true,  'Costado poniente junto a la cancha'),
-    ('cc-edificio-p',       'Edificio P (Federación)',                        'Edificio P',           'bld-p', 1, 'room',      785, 110, 4, true,  'Cruzando Av. Placeres por San Guillermo'),
-    ('cc-aula-a201',        'Aula A-201 — Ingeniería (Piso 2)',               'Edificio A',           'bld-a', 2, 'room',      675, 720, 8, true,  'Sala de clases ala oriente Piso 2 Edificio A'),
-    ('cc-sala-b202',        'Sala de Estudio B-202 — Biblioteca (Piso 2)',    'Edificio B',           'bld-b', 2, 'room',     1040, 580, 8, true,  'Sala silenciosa de lectura Piso 2 Biblioteca Central'),
-    ('cc-salida-placeres',  'Salida Norte — Av. Placeres',                    'Exterior',             NULL,    1, 'entrance',  945, 235, 6, true,  'Portón peatonal norte hacia Av. Placeres'),
-    ('cc-salida-oriente',   'Salida Oriente — Portón Av. España',             'Exterior',             NULL,    1, 'entrance', 1435, 890, 2, true,  'Salida peatonal y vehicular sector jardines oriente'),
-    ('cc-explanada-espana', 'Explanada Monumental Av. España',                'Red Vial Pavimentada', NULL,    1, 'corridor',  840, 865, 2, true,  'Explanada pavimentada sur entre Portón Av. España, Frontis Edificio A y Jardines'),
-    ('cc-patio-central',    'Plaza Central del Claustro (Cruce Pavimentado)', 'Red Vial Pavimentada', NULL,    1, 'corridor',  825, 615, 4, true,  'Plaza pavimentada central entre Edificio A, Claustro Edificio B y Paseo Poniente'),
-    ('cc-paseo-poniente',   'Paseo Pavimentado Poniente — Mirador Cancha',    'Red Vial Pavimentada', NULL,    1, 'corridor',  435, 525, 4, true,  'Calzada peatonal pavimentada junto a la cancha hacia Informática (Ed. M), Ed. A y Ed. C'),
-    ('cc-terraza-placeres', 'Crucero Pavimentado Terraza Placeres',           'Red Vial Pavimentada', NULL,    1, 'corridor',  825, 235, 5, true,  'Cruce vial pavimentado norte entre Edificio C, Edificio P y Salida Av. Placeres')
+    ('cc-acceso-espana',    'Acceso Principal Av. España',                    'Exterior',             NULL,    1, 'entrance', 1080, 1320, 0, true,  'Escalinata y acceso sur desde Av. España'),
+    ('cc-edificio-a-p1',    'Edificio A — Hall Central (Piso 1)',             'Edificio A',           'bld-a', 1, 'corridor',  860,  940, 4, true,  'Patio central y accesos a aulas A'),
+    ('cc-ascensor-a-p1',    'Ascensor Edificio A (Piso 1)',                   'Edificio A',           'bld-a', 1, 'elevator',  740,  940, 4, false, 'Costado oeste del hall Edificio A'),
+    ('cc-ascensor-a-p2',    'Ascensor Edificio A (Piso 2)',                   'Edificio A',           'bld-a', 2, 'elevator',  740,  940, 8, true,  'Pasillo superior Edificio A'),
+    ('cc-edificio-b-p1',    'Edificio B — Patio Interior (Piso 1)',           'Edificio B',           'bld-b', 1, 'corridor', 1420,  760, 4, true,  'Claustro central del Edificio B'),
+    ('cc-ascensor-b-p1',    'Ascensor Edificio B (Piso 1)',                   'Edificio B',           'bld-b', 1, 'elevator', 1530,  760, 4, false, 'Ala oriente Edificio B'),
+    ('cc-ascensor-b-p2',    'Ascensor Edificio B (Piso 2)',                   'Edificio B',           'bld-b', 2, 'elevator', 1530,  760, 8, true,  'Conexión superior Edificio B hacia A y C'),
+    ('cc-edificio-c-p1',    'Edificio C — Acceso Norte (Av. Placeres)',       'Edificio C',           'bld-c', 1, 'entrance', 1080,  440, 4, true,  'Frente a Avenida Placeres'),
+    ('cc-rampa-b-c',        'Rampa Accesible B–C',                            'Exterior',             NULL,    1, 'ramp',     1240,  580, 4, false, 'Rampa techada entre Edificio B y Edificio C'),
+    ('cc-edificio-f',       'Edificio F (Piso 1)',                            'Edificio F',           'bld-f', 1, 'room',     1770, 1135, 4, true,  'Jardines sector sur-oriente'),
+    ('cc-edificio-m',       'Edificio M (Informática)',                       'Edificio M',           'bld-m', 1, 'room',      250,  645, 4, true,  'Costado poniente junto a la cancha'),
+    ('cc-edificio-p',       'Edificio P (Federación)',                        'Edificio P',           'bld-p', 1, 'room',     1080,  118, 4, true,  'Cruzando Av. Placeres por San Guillermo'),
+    ('cc-aula-a201',        'Aula A-201 — Ingeniería (Piso 2)',               'Edificio A',           'bld-a', 2, 'room',      860,  940, 8, true,  'Sala de clases ala oriente Piso 2 Edificio A'),
+    ('cc-sala-b202',        'Sala de Estudio B-202 — Biblioteca (Piso 2)',    'Edificio B',           'bld-b', 2, 'room',     1420,  760, 8, true,  'Sala silenciosa de lectura Piso 2 Biblioteca Central'),
+    ('cc-salida-placeres',  'Salida Norte — Av. Placeres',                    'Exterior',             NULL,    1, 'entrance', 1420,  280, 6, true,  'Portón peatonal norte hacia Av. Placeres'),
+    ('cc-salida-oriente',   'Salida Oriente — Portón Av. España',             'Exterior',             NULL,    1, 'entrance', 2020, 1135, 2, true,  'Salida peatonal y vehicular sector jardines oriente'),
+    ('cc-explanada-espana', 'Explanada Monumental Av. España',                'Red Vial Pavimentada', NULL,    1, 'corridor', 1080, 1135, 2, true,  'Explanada pavimentada sur entre Portón Av. España, Frontis Edificio A y Jardines'),
+    ('cc-patio-central',    'Plaza Central del Claustro (Cruce Pavimentado)', 'Red Vial Pavimentada', NULL,    1, 'corridor', 1080,  760, 4, true,  'Plaza pavimentada central entre Edificio A, Claustro Edificio B y Paseo Poniente'),
+    ('cc-paseo-poniente',   'Paseo Pavimentado Poniente — Mirador Cancha',    'Red Vial Pavimentada', NULL,    1, 'corridor',  540,  645, 4, true,  'Calzada peatonal pavimentada junto a la cancha hacia Informática (Ed. M), Ed. A y Ed. C'),
+    ('cc-terraza-placeres', 'Crucero Pavimentado Terraza Placeres',           'Red Vial Pavimentada', NULL,    1, 'corridor', 1080,  280, 5, true,  'Cruce vial pavimentado norte entre Edificio C, Edificio P y Salida Av. Placeres')
 ON CONFLICT (id) DO UPDATE SET
     name           = EXCLUDED.name,
     building       = EXCLUDED.building,

@@ -42,7 +42,7 @@ CampusRoute integra un grafo espacial multicapa del campus con ruteo inteligente
    - **Protección ante Lluvia**: consulta el clima en vivo vía **Open-Meteo** (y permite activar **Simular lluvia** o **Preferir tramos cubiertos**), aplicando penalización (`×2.5`) sobre caminos descubiertos (`is_covered = false`) para privilegiar pasillos techados.
    - **Transparencia algorítmica**: compara heurística 3D euclidiana (`A*`, con elevación `z` ponderada) frente a `Dijkstra`, exponiendo distancia, tiempo estimado, peso total y nodos explorados.
 
-2. **Mapa Interactivo 3D Isométrico + Vista Cenital (Prototipo UTFSM Casa Central, `1600×1050`)**
+2. **Mapa Interactivo 3D Isométrico + Vista Cenital (Prototipo UTFSM Casa Central, `2200×1450`)**
    - **6 Variantes Arquitectónicas 3D No Rectangulares con Techos Translúcidos (`🏠 Techos 3D`)**:
      - **Edificio A (`bld-a`, Ingeniería / Frontis Gótico)**: planta en **"U"** de 8 vértices con explanada frontal hacia Av. España + **Torre Gótica del Reloj central** elevada con chapitel piramidal y esfera luminosa.
      - **Edificio B (`bld-b`, Biblioteca / Claustro)**: planta tipo **claustro con Patio Interior hundido** ajardinado y techo perimetral en anillo.
@@ -51,15 +51,17 @@ CampusRoute integra un grafo espacial multicapa del campus con ruteo inteligente
      - **Edificio F (`bld-f`, Sur-Oriente / Talleres)**: doble nave industrial en **"H"** con techo en **diente de sierra** (`sawtooth`).
      - **Edificio P (`bld-p`, Federación)**: pabellón **octagonal achaflanado** con cubierta facetada de 8 faldones.
      - Todos los techos 3D incorporan **tragaluces translúcidos** que permiten ver y hacer clic en los nodos interiores (`Piso 1` y `Piso 2`).
-   - **Red Vial Pavimentada, Plazoletas, 2 Salidas y Piso 2 Seleccionable (`20` nodos, `30` tramos, `17` destinos)**:
-     - **4 nodos de calzadas/plazas pavimentadas** (*Explanada Monumental Av. España*, *Plaza Central del Claustro*, *Paseo Pavimentado Poniente — Mirador Cancha* y *Crucero Pavimentado Terraza Placeres*) conectados mediante **calzadas pavimentadas 3D** con sombra proyectada sobre la losa, bordillo de hormigón y eje central segmentado.
+   - **Calles Ortogonales con Esquinas a 90°, Textura de Piso 3D y Podios de Inicio/Llegada (`20` nodos, `30` tramos, `17` destinos)**:
+     - **Red vial 100% ortogonal (`2200×1450`)**: separación amplia entre los 6 edificios y trazado de calzadas con **esquinas a 90° (giros en L y Z sin diagonales arbitrarias)**, aceras y bordillos en tonos neutros, eje central segmentado y **pasos de cebra peatonales** en cada esquina, además de 4 plazoletas/cruces pavimentados (*Explanada Monumental Av. España*, *Plaza Central del Claustro*, *Paseo Pavimentado Poniente — Mirador Cancha* y *Crucero Pavimentado Terraza Placeres*).
+     - **Textura de losa 3D y áreas verdes**: retícula proyectada de adoquines (`140 px`) con marcas de losa (`280 px`) y **4 parterres ajardinados con árboles 3D** sobre el Piso 1 tanto en vista isométrica como cenital.
+     - **Podios 3D luminosos de Inicio y Llegada**: balizas multicapa con haz de luz vertical, iconos escalados y carteles flotantes 3D **`📍 PUNTO DE INICIO`** y **`🏁 META · LLEGADA`**.
      - **4 destinos en Piso 2** (`Aula A-201 — Ingeniería`, `Sala de Estudio B-202 — Biblioteca`, `Ascensor Edificio A Piso 2` y `Ascensor Edificio B Piso 2`) unidos al Piso 1 tanto por **ascensores verticales 3D** (`🛗 ASCENSOR 1↔2`) como por **escaleras interiores 3D en zigzag** (`🪜 ESCALERA P1↔P2`), además de escalinatas exteriores de elevación (`🪜 Δz`).
      - **2 nuevas Salidas señalizadas (`🚪 SALIDA`)**: *Salida Norte — Av. Placeres* y *Salida Oriente — Portón Av. España*, junto a los accesos principales.
-   - **Orientación Espacial 3D**: separación vertical amplia entre **Piso 1** y **Piso 2**, rotación interactiva `0° / 90° / 180° / 270°` con contra-rotación automática de etiquetas, vista **3D Isométrica / Cenital**, **Estrella Polar 3D interactiva (`CompassRose`)** con puntos cardinales reales y referencias en los bordes (`N · Av. Placeres`, `S · Av. España`, `O · Informática`, `E · Jardines / Ed. F`).
+   - **Orientación Espacial 3D**: separación vertical amplia entre **Piso 1** y **Piso 2** (`ISO_FLOOR_STEP = 420`), rotación interactiva `0° / 90° / 180° / 270°` con contra-rotación automática de etiquetas, vista **3D Isométrica / Cenital**, **Estrella Polar 3D interactiva (`CompassRose`)** con puntos cardinales reales y referencias en los bordes (`N · Av. Placeres`, `S · Av. España`, `O · Informática`, `E · Jardines / Ed. F`).
 
 3. **Modo GPS en Tiempo Real, Instrucciones por Voz y Simulador de Recorrido**
    - **Síntesis de Voz en Español (`Web Speech API`)**: botón **`🔊 Escuchar ruta`** / **`⏹ Detener voz`** con resaltado automático del paso narrado, botón **`🔊`** individual en cada paso y toggle **`🔈 Auto-voz`** que anuncia cada giro, cambio de piso y llegada en modo GPS.
-   - **GPS en vivo (`navigator.geolocation.watchPosition`)**: georreferenciado al plano de UTFSM Casa Central (`1600×1050`) con ícono de **Persona con radar** para la ubicación actual (Origen `A` / GPS) y **Banderín** para la meta (`B`).
+   - **GPS en vivo (`navigator.geolocation.watchPosition`)**: georreferenciado al plano de UTFSM Casa Central (`2200×1450`) con ícono de **Persona con radar** sobre podio luminoso para la ubicación actual (`📍 PUNTO DE INICIO`) y **Banderín** para la meta (`🏁 META · LLEGADA`).
    - **Simulador integrado paso a paso y auto-recorrido** que permite demostrar y probar el desplazamiento en tiempo real incluso en interiores o fuera del campus.
 
 4. **Actualización en Vivo de Caminos Disponibles al Reportar Incidencias + Respaldo Offline**

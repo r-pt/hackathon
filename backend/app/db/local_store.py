@@ -35,9 +35,9 @@ from app.schemas.incidents import (
 from app.schemas.routes import GraphEdge, GraphIncident, GraphNode
 from app.services.graph_fixture import get_casa_central_graph
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 CAMPUS_NAME = "UTFSM Casa Central — Campus Simulado"
-DEFAULT_VIEWBOX = ViewBox(width=1600, height=1050)
+DEFAULT_VIEWBOX = ViewBox(width=2200, height=1450)
 DEFAULT_FLOORS = [1, 2]
 VALID_STATUS_FILTERS = frozenset({"active", "resolved", "all"})
 MAX_LOCAL_INCIDENTS = 100
@@ -71,20 +71,20 @@ def _seed_buildings() -> list[CampusBuilding]:
         CampusBuilding(
             id="bld-p",
             name="Edificio P (Federación)",
-            x=700,
+            x=980,
             y=60,
-            width=170,
-            height=100,
+            width=200,
+            height=115,
             floors=1,
             color="#0891B2",
         ),
         CampusBuilding(
             id="bld-c",
             name="Edificio C (Placeres)",
-            x=690,
-            y=320,
-            width=180,
-            height=105,
+            x=970,
+            y=380,
+            width=220,
+            height=120,
             floors=1,
             color="#4F46E5",
         ),
@@ -92,39 +92,39 @@ def _seed_buildings() -> list[CampusBuilding]:
             id="bld-m",
             name="Edificio M (Informática)",
             x=140,
-            y=420,
-            width=180,
-            height=115,
+            y=580,
+            width=220,
+            height=130,
             floors=1,
             color="#D97706",
         ),
         CampusBuilding(
             id="bld-b",
             name="Edificio B (Biblioteca)",
-            x=980,
-            y=520,
-            width=210,
-            height=120,
+            x=1340,
+            y=690,
+            width=240,
+            height=140,
             floors=2,
             color="#059669",
         ),
         CampusBuilding(
             id="bld-a",
             name="Edificio A (Ingeniería)",
-            x=520,
-            y=650,
-            width=210,
-            height=125,
+            x=680,
+            y=870,
+            width=240,
+            height=145,
             floors=2,
             color="#2563EB",
         ),
         CampusBuilding(
             id="bld-f",
             name="Edificio F (Sur-Oriente)",
-            x=1180,
-            y=790,
-            width=190,
-            height=115,
+            x=1660,
+            y=1070,
+            width=220,
+            height=130,
             floors=1,
             color="#7C3AED",
         ),

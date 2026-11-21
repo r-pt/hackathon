@@ -51,7 +51,7 @@ def test_campus_map_full_and_floor_filtering() -> None:
     assert full_resp.status_code == 200
     full_body = full_resp.json()
     assert full_body["campus_name"] == "UTFSM Casa Central — Campus Simulado"
-    assert full_body["viewbox"] == {"width": 1600, "height": 1050}
+    assert full_body["viewbox"] == {"width": 2200, "height": 1450}
     assert full_body["floors"] == [1, 2]
     assert len(full_body["buildings"]) == 6
     assert {b["id"] for b in full_body["buildings"]} == {

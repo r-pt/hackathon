@@ -22,7 +22,7 @@ interface CampusMap3DProps {
   darkMode?: boolean
 }
 
-const ISO_FLOOR_STEP = 340
+const ISO_FLOOR_STEP = 420
 const BLDG_EXTRUDE = 34
 
 const EDGE_STYLE: Record<
@@ -476,8 +476,8 @@ export function CampusMap3D({
     for (const fl of floorsList) {
       const floorNodes = map.nodes.filter((n) => n.floor === fl)
       const pts = floorNodes.map((n) => ({ id: n.id, x: n.x, y: n.y }))
-      const minDist = viewMode === 'top' ? 78 : 64
-      for (let iter = 0; iter < 16; iter++) {
+      const minDist = 28
+      for (let iter = 0; iter < 12; iter++) {
         for (let i = 0; i < pts.length; i++) {
           for (let j = i + 1; j < pts.length; j++) {
             const dx = pts[j].x - pts[i].x
@@ -550,9 +550,9 @@ export function CampusMap3D({
       allWorldY.push(p.y)
     }
     const worldMinX = allWorldX.length ? Math.min(...allWorldX) : 0
-    const worldMaxX = allWorldX.length ? Math.max(...allWorldX) : map.viewbox?.width || 1600
+    const worldMaxX = allWorldX.length ? Math.max(...allWorldX) : map.viewbox?.width || 2200
     const worldMinY = allWorldY.length ? Math.min(...allWorldY) : 0
-    const worldMaxY = allWorldY.length ? Math.max(...allWorldY) : map.viewbox?.height || 1050
+    const worldMaxY = allWorldY.length ? Math.max(...allWorldY) : map.viewbox?.height || 1450
     const centerX = (worldMinX + worldMaxX) / 2
     const centerY = (worldMinY + worldMaxY) / 2
 
@@ -577,9 +577,9 @@ export function CampusMap3D({
       rotWorldYs.push(rp.y)
     }
     const rotMinX = (rotWorldXs.length ? Math.min(...rotWorldXs) : 0) - 44
-    const rotMaxX = (rotWorldXs.length ? Math.max(...rotWorldXs) : map.viewbox?.width || 1600) + 44
+    const rotMaxX = (rotWorldXs.length ? Math.max(...rotWorldXs) : map.viewbox?.width || 2200) + 44
     const rotMinY = (rotWorldYs.length ? Math.min(...rotWorldYs) : 0) - 44
-    const rotMaxY = (rotWorldYs.length ? Math.max(...rotWorldYs) : map.viewbox?.height || 1050) + 44
+    const rotMaxY = (rotWorldYs.length ? Math.max(...rotWorldYs) : map.viewbox?.height || 1450) + 44
     const deckW = Math.max(480, rotMaxX - rotMinX)
     const deckH = Math.max(360, rotMaxY - rotMinY)
     const deckGap = 96
@@ -643,9 +643,9 @@ export function CampusMap3D({
       samples.push(rawProject(p.x, p.y, n.floor, -14))
     }
 
-    const padX = 88
-    const padTop = 78
-    const padBottom = 62
+    const padX = 96
+    const padTop = 98
+    const padBottom = 68
     const minX = (samples.length ? Math.min(...samples.map((p) => p.x)) : 0) - padX
     const maxX = (samples.length ? Math.max(...samples.map((p) => p.x)) : 800) + padX
     const minY = (samples.length ? Math.min(...samples.map((p) => p.y)) : 0) - padTop
@@ -662,6 +662,131 @@ export function CampusMap3D({
     const projectNode = (n: CampusNode) => {
       const p = spacedCoords.get(n.id) ?? { x: n.x, y: n.y }
       return project(p.x, p.y, n.floor, 0)
+    }
+
+    const segmentHitsBuildingInterior = (
+      ax: number,
+      ay: number,
+      bx: number,
+      by: number,
+      fl: number,
+      startPt: { x: number; y: number },
+      endPt: { x: number; y: number }
+    ) => {
+      const segMinX = Math.min(ax, bx)
+      const segMaxX = Math.max(ax, bx)
+      const segMinY = Math.min(ay, by)
+      const segMaxY = Math.max(ay, by)
+      for (const b of buildings) {
+        if (fl > Math.max(1, b.floors)) continue
+        const startInB =
+          startPt.x >= b.x - 10 &&
+          startPt.x <= b.x + b.width + 10 &&
+          startPt.y >= b.y - 10 &&
+          startPt.y <= b.y + b.height + 10
+        const endInB =
+          endPt.x >= b.x - 10 &&
+          endPt.x <= b.x + b.width + 10 &&
+          endPt.y >= b.y - 10 &&
+          endPt.y <= b.y + b.height + 10
+        if (startInB || endInB) continue
+        const rx0 = b.x + 14
+        const rx1 = b.x + b.width - 14
+        const ry0 = b.y + 14
+        const ry1 = b.y + b.height - 14
+        if (segMaxX >= rx0 && segMinX <= rx1 && segMaxY >= ry0 && segMinY <= ry1) {
+          return true
+        }
+      }
+      return false
+    }
+
+    const computeOrthogonalWorldWaypoints = (
+      n1: CampusNode,
+      n2: CampusNode
+    ): { x: number; y: number }[] => {
+      const p1 = spacedCoords.get(n1.id) ?? { x: n1.x, y: n1.y }
+      const p2 = spacedCoords.get(n2.id) ?? { x: n2.x, y: n2.y }
+      if (n1.floor !== n2.floor) return [p1, p2]
+      const x1 = p1.x
+      const y1 = p1.y
+      const x2 = p2.x
+      const y2 = p2.y
+      if (Math.abs(x1 - x2) <= 10 || Math.abs(y1 - y2) <= 10) {
+        return [p1, p2]
+      }
+      const midY = Math.round((y1 + y2) / 2)
+      const midX = Math.round((x1 + x2) / 2)
+      const candidates: { x: number; y: number }[][] = [
+        [p1, { x: x2, y: y1 }, p2],
+        [p1, { x: x1, y: y2 }, p2],
+        [p1, { x: x1, y: midY }, { x: x2, y: midY }, p2],
+        [p1, { x: midX, y: y1 }, { x: midX, y: y2 }, p2],
+      ]
+      const isAvenuePt = (pt: { x: number; y: number }) =>
+        Math.abs(pt.x - 1080) <= 18 ||
+        Math.abs(pt.y - 645) <= 18 ||
+        Math.abs(pt.y - 760) <= 18 ||
+        Math.abs(pt.y - 1135) <= 18 ||
+        Math.abs(pt.y - 280) <= 18
+
+      const validCandidates = candidates.filter((cand) => {
+        for (let i = 0; i < cand.length - 1; i++) {
+          if (
+            segmentHitsBuildingInterior(
+              cand[i].x,
+              cand[i].y,
+              cand[i + 1].x,
+              cand[i + 1].y,
+              n1.floor,
+              p1,
+              p2
+            )
+          ) {
+            return false
+          }
+        }
+        return true
+      })
+
+      const pool = validCandidates.length > 0 ? validCandidates : candidates
+      const avenueMatch = pool.find((cand) => cand.slice(1, -1).some(isAvenuePt))
+      return avenueMatch ?? pool[0]
+    }
+
+    const edgeWaypointsCache = new Map<string, { x: number; y: number }[]>()
+    for (const e of map.edges) {
+      const a = nodeMap.get(e.from_node_id)
+      const b = nodeMap.get(e.to_node_id)
+      if (a && b) {
+        edgeWaypointsCache.set(e.id, computeOrthogonalWorldWaypoints(a, b))
+      }
+    }
+
+    const getEdgeWorldWaypoints = (e: CampusEdge): { x: number; y: number }[] => {
+      const cached = edgeWaypointsCache.get(e.id)
+      if (cached) return cached
+      const a = nodeMap.get(e.from_node_id)!
+      const b = nodeMap.get(e.to_node_id)!
+      return computeOrthogonalWorldWaypoints(a, b)
+    }
+
+    const getEdgeProjectedWaypoints = (e: CampusEdge): { x: number; y: number }[] => {
+      const a = nodeMap.get(e.from_node_id)!
+      return getEdgeWorldWaypoints(e).map((pt) => project(pt.x, pt.y, a.floor, 0))
+    }
+
+    const getPairProjectedWaypoints = (n1: CampusNode, n2: CampusNode): { x: number; y: number }[] => {
+      const match = map.edges.find(
+        (e) =>
+          (e.from_node_id === n1.id && e.to_node_id === n2.id) ||
+          (e.from_node_id === n2.id && e.to_node_id === n1.id)
+      )
+      if (match) {
+        const pts = getEdgeProjectedWaypoints(match)
+        return match.from_node_id === n1.id ? pts : [...pts].reverse()
+      }
+      return computeOrthogonalWorldWaypoints(n1, n2).map((pt) => project(pt.x, pt.y, n1.floor, 0))
     }
 
     const isNodeVisible = (n: CampusNode) => stacked || n.floor === activeFloorView
@@ -700,6 +825,9 @@ export function CampusMap3D({
       isNodeVisible,
       project,
       projectNode,
+      getEdgeWorldWaypoints,
+      getEdgeProjectedWaypoints,
+      getPairProjectedWaypoints,
       worldMinX,
       worldMaxX,
       worldMinY,
@@ -726,6 +854,8 @@ export function CampusMap3D({
     isNodeVisible,
     project,
     projectNode,
+    getEdgeProjectedWaypoints,
+    getPairProjectedWaypoints,
     worldMinX,
     worldMaxX,
     worldMinY,
@@ -841,6 +971,14 @@ export function CampusMap3D({
             if (cur.length > 1) segments.push(cur)
             cur = [`${p.x},${p.y}`]
             pushVertical(`rv-${prevNode.id}-${n.id}`, projectNode(prevNode), p)
+          } else if (prevNode && prevNode.floor === n.floor) {
+            const pairPts = getPairProjectedWaypoints(prevNode, n)
+            if (cur.length === 0) {
+              cur.push(`${pairPts[0].x},${pairPts[0].y}`)
+            }
+            for (let wi = 1; wi < pairPts.length; wi++) {
+              cur.push(`${pairPts[wi].x},${pairPts[wi].y}`)
+            }
           } else {
             cur.push(`${p.x},${p.y}`)
           }
@@ -864,7 +1002,8 @@ export function CampusMap3D({
         if (a.floor !== b.floor && stacked) {
           pushVertical(`rv-${e.id}`, pa, pb)
         } else {
-          segments.push([`${pa.x},${pa.y}`, `${pb.x},${pb.y}`])
+          const wpts = getEdgeProjectedWaypoints(e)
+          segments.push(wpts.map((pt) => `${pt.x},${pt.y}`))
         }
       }
     }
@@ -873,7 +1012,18 @@ export function CampusMap3D({
       routePolylines: segments.map((pts) => pts.join(' ')),
       routeVerticals: verticals,
     }
-  }, [route, nodeMap, isNodeVisible, projectNode, stacked, viewMode, visibleEdges, routeEdgeSet])
+  }, [
+    route,
+    nodeMap,
+    isNodeVisible,
+    projectNode,
+    getPairProjectedWaypoints,
+    getEdgeProjectedWaypoints,
+    stacked,
+    viewMode,
+    visibleEdges,
+    routeEdgeSet,
+  ])
 
   const visibleNodesByFloor = useMemo(() => {
     const grouped = new Map<number, CampusNode[]>()
@@ -1431,6 +1581,145 @@ export function CampusMap3D({
   const renderFloorBaseSlab = (fl: number, idx: number) => {
     const subtitle = fl === 1 ? 'Planta baja' : fl === 2 ? 'Nivel superior' : `Nivel ${fl}`
 
+    const flBuildings = buildings.filter((b) => fl <= Math.max(1, b.floors))
+    const flNodes = map.nodes.filter((n) => n.floor === fl)
+    let sxMin = worldMinX - 28
+    let sxMax = worldMaxX + 28
+    let syMin = worldMinY - 28
+    let syMax = worldMaxY + 28
+
+    if (viewMode === 'iso' && stacked && idx > 0 && (flBuildings.length > 0 || flNodes.length > 0)) {
+      const xs: number[] = []
+      const ys: number[] = []
+      for (const b of flBuildings) {
+        xs.push(b.x - 24, b.x + b.width + 24)
+        ys.push(b.y - 24, b.y + b.height + 24)
+      }
+      for (const n of flNodes) {
+        const p = spacedCoords.get(n.id) ?? n
+        xs.push(p.x - 28, p.x + 28)
+        ys.push(p.y - 28, p.y + 28)
+      }
+      sxMin = Math.min(...xs)
+      sxMax = Math.max(...xs)
+      syMin = Math.min(...ys)
+      syMax = Math.max(...ys)
+    }
+
+    const slabElev = viewMode === 'iso' ? -BLDG_EXTRUDE : 0
+    const gridStep = 140
+    const gxStart = Math.ceil(sxMin / gridStep) * gridStep
+    const gyStart = Math.ceil(syMin / gridStep) * gridStep
+    const gridXLines: { p0: { x: number; y: number }; p1: { x: number; y: number }; gx: number }[] = []
+    for (let gx = gxStart; gx <= sxMax; gx += gridStep) {
+      gridXLines.push({
+        gx,
+        p0: project(gx, syMin, fl, slabElev),
+        p1: project(gx, syMax, fl, slabElev),
+      })
+    }
+    const gridYLines: { p0: { x: number; y: number }; p1: { x: number; y: number }; gy: number }[] = []
+    for (let gy = gyStart; gy <= syMax; gy += gridStep) {
+      gridYLines.push({
+        gy,
+        p0: project(sxMin, gy, fl, slabElev),
+        p1: project(sxMax, gy, fl, slabElev),
+      })
+    }
+    const gridTicks: { x: number; y: number }[] = []
+    for (let gx = Math.ceil(sxMin / 280) * 280; gx <= sxMax; gx += 280) {
+      for (let gy = Math.ceil(syMin / 280) * 280; gy <= syMax; gy += 280) {
+        gridTicks.push(project(gx, gy, fl, slabElev))
+      }
+    }
+
+    const parterres =
+      fl === 1
+        ? [
+            { x1: 260, y1: 180, x2: 760, y2: 480 },
+            { x1: 1660, y1: 360, x2: 2000, y2: 620 },
+            { x1: 220, y1: 840, x2: 560, y2: 1200 },
+            { x1: 1180, y1: 880, x2: 1360, y2: 1060 },
+          ]
+        : []
+
+    const renderFloorTextureLayer = () => (
+      <g pointerEvents="none" aria-hidden="true">
+        {gridXLines.map((ln) => (
+          <line
+            key={`gx-${ln.gx}`}
+            x1={ln.p0.x}
+            y1={ln.p0.y}
+            x2={ln.p1.x}
+            y2={ln.p1.y}
+            stroke={isDark ? 'rgba(51, 65, 85, 0.36)' : 'rgba(148, 163, 184, 0.24)'}
+            strokeWidth={0.9}
+          />
+        ))}
+        {gridYLines.map((ln) => (
+          <line
+            key={`gy-${ln.gy}`}
+            x1={ln.p0.x}
+            y1={ln.p0.y}
+            x2={ln.p1.x}
+            y2={ln.p1.y}
+            stroke={isDark ? 'rgba(51, 65, 85, 0.36)' : 'rgba(148, 163, 184, 0.24)'}
+            strokeWidth={0.9}
+          />
+        ))}
+        {gridTicks.map((pt, ti) => (
+          <g
+            key={`gt-${ti}`}
+            stroke={isDark ? 'rgba(100, 116, 139, 0.5)' : 'rgba(100, 116, 139, 0.38)'}
+            strokeWidth={1.1}
+          >
+            <line x1={pt.x - 3.5} y1={pt.y} x2={pt.x + 3.5} y2={pt.y} />
+            <line x1={pt.x} y1={pt.y - 2.2} x2={pt.x} y2={pt.y + 2.2} />
+          </g>
+        ))}
+        {parterres.map((gBox, gi) => {
+          const gPts = (
+            [
+              [gBox.x1, gBox.y1],
+              [gBox.x2, gBox.y1],
+              [gBox.x2, gBox.y2],
+              [gBox.x1, gBox.y2],
+            ] as [number, number][]
+          ).map(([wx, wy]) => project(wx, wy, fl, slabElev))
+          const trees: [number, number][] = [
+            [gBox.x1 + (gBox.x2 - gBox.x1) * 0.28, gBox.y1 + (gBox.y2 - gBox.y1) * 0.34],
+            [gBox.x1 + (gBox.x2 - gBox.x1) * 0.72, gBox.y1 + (gBox.y2 - gBox.y1) * 0.66],
+          ]
+          return (
+            <g key={`parterre-${gi}`}>
+              <polygon
+                points={gPts.map((p) => `${p.x},${p.y}`).join(' ')}
+                fill={isDark ? 'rgba(6, 78, 59, 0.26)' : 'rgba(187, 247, 208, 0.42)'}
+                stroke={isDark ? '#065F46' : '#86EFAC'}
+                strokeWidth={1.2}
+              />
+              {trees.map(([tx, ty], tri) => {
+                const tp = project(tx, ty, fl, slabElev + (viewMode === 'iso' ? 5 : 0))
+                return (
+                  <g key={`tree-${tri}`} transform={`translate(${tp.x}, ${tp.y})`}>
+                    <ellipse cx={2.5} cy={4} rx={8} ry={5} fill="rgba(2, 6, 23, 0.18)" />
+                    <circle
+                      r={7}
+                      fill={isDark ? '#047857' : '#4ADE80'}
+                      fillOpacity={0.72}
+                      stroke={isDark ? '#10B981' : '#16A34A'}
+                      strokeWidth={1.1}
+                    />
+                    <circle cx={-2} cy={-2} r={2.8} fill="#BBF7D0" fillOpacity={0.45} />
+                  </g>
+                )
+              })}
+            </g>
+          )
+        })}
+      </g>
+    )
+
     if (viewMode === 'top') {
       const dx = idx * (deckW + deckGap) + offsetX - 18
       const dy = offsetY - 18
@@ -1457,6 +1746,7 @@ export function CampusMap3D({
             stroke={isDark ? '#334155' : '#CBD5E1'}
             strokeWidth={1.8}
           />
+          {renderFloorTextureLayer()}
           <g transform={`translate(${dx + dw / 2}, ${dy - 14})`}>
             <rect x={-105} y={-14} width={210} height={26} rx={13} fill="#0F172A" stroke="#FFFFFF" strokeWidth={1.8} />
             <text
@@ -1472,31 +1762,6 @@ export function CampusMap3D({
           </g>
         </g>
       )
-    }
-
-    const flBuildings = buildings.filter((b) => fl <= Math.max(1, b.floors))
-    const flNodes = map.nodes.filter((n) => n.floor === fl)
-    let sxMin = worldMinX - 28
-    let sxMax = worldMaxX + 28
-    let syMin = worldMinY - 28
-    let syMax = worldMaxY + 28
-
-    if (stacked && idx > 0 && (flBuildings.length > 0 || flNodes.length > 0)) {
-      const xs: number[] = []
-      const ys: number[] = []
-      for (const b of flBuildings) {
-        xs.push(b.x - 24, b.x + b.width + 24)
-        ys.push(b.y - 24, b.y + b.height + 24)
-      }
-      for (const n of flNodes) {
-        const p = spacedCoords.get(n.id) ?? n
-        xs.push(p.x - 28, p.x + 28)
-        ys.push(p.y - 28, p.y + 28)
-      }
-      sxMin = Math.min(...xs)
-      sxMax = Math.max(...xs)
-      syMin = Math.min(...ys)
-      syMax = Math.max(...ys)
     }
 
     const slabCorners: [number, number][] = [
@@ -1540,6 +1805,10 @@ export function CampusMap3D({
           strokeWidth={idx === 0 ? 1.6 : 1.8}
           strokeDasharray={idx === 0 ? undefined : '7 4'}
         />
+
+        {/* Projected 3D Paver Grid Texture & Campus Green Parterres */}
+        {renderFloorTextureLayer()}
+
         <g transform={`translate(${leftMost.x + 14}, ${leftMost.y + 4})`}>
           <rect
             x={-8}
@@ -1614,102 +1883,99 @@ export function CampusMap3D({
     const s = EDGE_STYLE[e.edge_type]
     const nodeA = nodeMap.get(e.from_node_id)!
     const nodeB = nodeMap.get(e.to_node_id)!
-    const a = projectNode(nodeA)
-    const b = projectNode(nodeB)
+    const projPts = getEdgeProjectedWaypoints(e)
+    const ptsStr = projPts.map((pt) => `${pt.x},${pt.y}`).join(' ')
+    const shadowPtsStr = projPts.map((pt) => `${pt.x + 3},${pt.y + 4.5}`).join(' ')
     const blocked = isEdgeBlocked(e)
     const warning = isEdgeWarning(e)
     const hasIncident = blocked || warning || edgeIncidents.has(e.id)
-    const dimmed = routeEdgeSet.size > 0 && !routeEdgeSet.has(e.id) && !blocked
+    const hasActiveRoute = routeEdgeSet.size > 0
+    const onRoute = routeEdgeSet.has(e.id)
+    const groupOpacity = hasIncident ? 0.92 : hasActiveRoute && !onRoute ? 0.36 : 0.76
     const covLabel = e.is_covered ? 'techado' : 'descubierto'
-    const baseWidth = 10
+    const isStairs = e.edge_type === 'stairs'
+    const dz = Math.abs((nodeB.z ?? 0) - (nodeA.z ?? 0))
 
-    const dx = b.x - a.x
-    const dy = b.y - a.y
+    // Middle segment for badges & stair treads
+    const midSegIdx = Math.floor((projPts.length - 1) / 2)
+    const segA = projPts[midSegIdx] ?? projPts[0]
+    const segB = projPts[midSegIdx + 1] ?? projPts[projPts.length - 1]
+    const dx = segB.x - segA.x
+    const dy = segB.y - segA.y
     const len = Math.hypot(dx, dy) || 1
     const nx = -dy / len
     const ny = dx / len
-    const isStairs = e.edge_type === 'stairs'
-    const dz = Math.abs((nodeB.z ?? 0) - (nodeA.z ?? 0))
-    const stepCount = isStairs ? Math.max(4, Math.min(12, Math.floor(len / 12))) : 0
-    const mx = (a.x + b.x) / 2
-    const my = (a.y + b.y) / 2
+    const stepCount = isStairs ? Math.max(4, Math.min(10, Math.floor(len / 12))) : 0
+    const mx = (segA.x + segB.x) / 2
+    const my = (segA.y + segB.y) / 2
 
-    const roadBedColor = blocked
+    const carriageColor = blocked
       ? isDark
         ? '#7F1D1D'
         : '#FECACA'
       : warning
         ? '#FEF08A'
-        : isDark
-          ? s.darkBed
-          : s.bed
+        : e.edge_type === 'ramp'
+          ? isDark
+            ? '#064E3B'
+            : '#D1FAE5'
+          : isStairs
+            ? isDark
+              ? '#3B1D0A'
+              : '#FEF3C7'
+            : e.is_covered
+              ? isDark
+                ? '#1E293B'
+                : '#DBEAFE'
+              : isDark
+                ? '#0F172A'
+                : '#E2E8F0'
+
+    const cornerIndices =
+      projPts.length > 2 ? Array.from({ length: projPts.length - 2 }, (_, i) => i + 1) : []
 
     return (
-      <g key={e.id} opacity={dimmed ? 0.55 : 0.99}>
-        {/* 1. 3D projected ground drop-shadow (+4, +6) */}
-        <line
-          x1={a.x + 4}
-          y1={a.y + 6}
-          x2={b.x + 4}
-          y2={b.y + 6}
-          stroke={isDark ? 'rgba(2, 6, 23, 0.55)' : 'rgba(15, 23, 42, 0.26)'}
-          strokeWidth={baseWidth + 6}
+      <g key={e.id} opacity={groupOpacity}>
+        {/* 1. Soft street ground shadow */}
+        <polyline
+          points={shadowPtsStr}
+          fill="none"
+          stroke={isDark ? 'rgba(2, 6, 23, 0.28)' : 'rgba(15, 23, 42, 0.08)'}
+          strokeWidth={19}
           strokeLinecap="round"
+          strokeLinejoin="round"
         />
-        {/* 2. 3D raised concrete kerb / thickness bevel (+1.5, +2.5) */}
-        <line
-          x1={a.x + 1.5}
-          y1={a.y + 2.5}
-          x2={b.x + 1.5}
-          y2={b.y + 2.5}
-          stroke={blocked ? '#991B1B' : isDark ? '#475569' : '#334155'}
-          strokeWidth={baseWidth + 5}
-          strokeOpacity={0.72}
+        {/* 2. Outer sidewalk / concrete curb (acera y solera) */}
+        <polyline
+          points={ptsStr}
+          fill="none"
+          stroke={blocked ? '#991B1B' : isDark ? '#1E293B' : '#CBD5E1'}
+          strokeWidth={16}
           strokeLinecap="round"
+          strokeLinejoin="round"
         />
-        {/* Covered sky-blue canopy halo */}
-        {e.is_covered && (
-          <g>
-            <line
-              x1={a.x}
-              y1={a.y}
-              x2={b.x}
-              y2={b.y}
-              stroke={isDark ? '#0284C7' : '#BAE6FD'}
-              strokeWidth={19}
-              strokeOpacity={isDark ? 0.42 : 0.78}
-              strokeLinecap="round"
-            />
-            <line
-              x1={a.x}
-              y1={a.y}
-              x2={b.x}
-              y2={b.y}
-              stroke="#38BDF8"
-              strokeWidth={15}
-              strokeOpacity={0.45}
-              strokeDasharray="6 5"
-              strokeLinecap="round"
-            />
-          </g>
-        )}
-        {/* 3. Wide Paved Roadbed Surface (Calzada Pavimentada) */}
-        <line
-          x1={a.x}
-          y1={a.y}
-          x2={b.x}
-          y2={b.y}
-          stroke={roadBedColor}
-          strokeWidth={baseWidth + 2}
-          strokeOpacity={0.96}
+        {/* 3. Inner curb rim (borde de solera) */}
+        <polyline
+          points={ptsStr}
+          fill="none"
+          stroke={blocked ? '#FECACA' : isDark ? '#334155' : '#F8FAFC'}
+          strokeWidth={13.5}
           strokeLinecap="round"
+          strokeLinejoin="round"
         />
-        {/* 4. Subtle Paved Centerline / Paver Joint Overlay or Blocked Hazard Stripes */}
-        <line
-          x1={a.x}
-          y1={a.y}
-          x2={b.x}
-          y2={b.y}
+        {/* 4. Muted carriageway (calzada tenue) */}
+        <polyline
+          points={ptsStr}
+          fill="none"
+          stroke={carriageColor}
+          strokeWidth={11}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        {/* 5. Muted center lane dashed line or blocked hazard stripes */}
+        <polyline
+          points={ptsStr}
+          fill="none"
           stroke={
             blocked
               ? '#DC2626'
@@ -1718,18 +1984,70 @@ export function CampusMap3D({
                 : e.edge_type === 'ramp'
                   ? '#10B981'
                   : isDark
-                    ? '#94A3B8'
-                    : '#F8FAFC'
+                    ? '#334155'
+                    : '#94A3B8'
           }
-          strokeWidth={blocked ? 4.2 : e.edge_type === 'ramp' ? 3.2 : 1.5}
-          strokeDasharray={blocked ? '7 5' : s.dash ?? '5 7'}
-          strokeOpacity={blocked ? 0.98 : 0.75}
+          strokeWidth={blocked ? 3.8 : e.edge_type === 'ramp' ? 2.2 : 1.1}
+          strokeDasharray={blocked ? '7 5' : '6 7'}
+          opacity={blocked ? 0.96 : 0.55}
           strokeLinecap="round"
+          strokeLinejoin="round"
         >
           <title>{`${s.label} (${e.distance_m} m, ${covLabel}${dz > 0 ? `, desnivel ${dz} m` : ''})${
             blocked ? ' — ⛔ CERRADO POR INCIDENCIA' : hasIncident ? ' — precaución' : ''
           }`}</title>
-        </line>
+        </polyline>
+
+        {/* 90° Street Corner Junction Pads & Pedestrian Zebra Crosswalks (Pasos de Cebra) */}
+        {cornerIndices.map((ci) => {
+          const prev = projPts[ci - 1]
+          const curr = projPts[ci]
+          const next = projPts[ci + 1]
+          const legs = [prev, next]
+          return (
+            <g key={`corner-${ci}`} pointerEvents="none" aria-hidden="true">
+              <circle
+                cx={curr.x}
+                cy={curr.y}
+                r={8.5}
+                fill={carriageColor}
+                stroke={isDark ? '#334155' : '#CBD5E1'}
+                strokeWidth={1.5}
+              />
+              {legs.map((target, li) => {
+                const ldx = target.x - curr.x
+                const ldy = target.y - curr.y
+                const lLen = Math.hypot(ldx, ldy) || 1
+                if (lLen < 26) return null
+                const ux = ldx / lLen
+                const uy = ldy / lLen
+                const px = -uy
+                const py = ux
+                return (
+                  <g key={`zebra-${li}`}>
+                    {[-3, 0, 3].map((off, si) => {
+                      const bx = curr.x + ux * 14 + px * off
+                      const by = curr.y + uy * 14 + py * off
+                      return (
+                        <line
+                          key={`zs-${si}`}
+                          x1={bx - ux * 2.6}
+                          y1={by - uy * 2.6}
+                          x2={bx + ux * 2.6}
+                          y2={by + uy * 2.6}
+                          stroke={isDark ? '#94A3B8' : '#FFFFFF'}
+                          strokeOpacity={0.78}
+                          strokeWidth={1.3}
+                          strokeLinecap="round"
+                        />
+                      )
+                    })}
+                  </g>
+                )
+              })}
+            </g>
+          )
+        })}
 
         {/* Live ⛔ CERRADO badge on blocked paths */}
         {blocked && (
@@ -1753,29 +2071,29 @@ export function CampusMap3D({
 
         {/* 3D perpendicular stair treads + elevation Δz marker on outdoor/elevation stairs */}
         {isStairs && (
-          <g pointerEvents="none" aria-hidden="true">
+          <g pointerEvents="none" aria-hidden="true" opacity={hasIncident ? 0.96 : 0.78}>
             {Array.from({ length: stepCount }, (_, i) => {
               const t = (i + 1) / (stepCount + 1)
-              const px = a.x + dx * t
-              const py = a.y + dy * t
+              const px = segA.x + dx * t
+              const py = segA.y + dy * t
               return (
                 <g key={`tread-${i}`}>
                   <line
-                    x1={px - nx * 5.5 + 1}
-                    y1={py - ny * 5.5 + 1.5}
-                    x2={px + nx * 5.5 + 1}
-                    y2={py + ny * 5.5 + 1.5}
+                    x1={px - nx * 5 + 1}
+                    y1={py - ny * 5 + 1.5}
+                    x2={px + nx * 5 + 1}
+                    y2={py + ny * 5 + 1.5}
                     stroke="#9A3412"
-                    strokeWidth={2}
+                    strokeWidth={1.8}
                     strokeLinecap="round"
                   />
                   <line
-                    x1={px - nx * 5.5}
-                    y1={py - ny * 5.5}
-                    x2={px + nx * 5.5}
-                    y2={py + ny * 5.5}
+                    x1={px - nx * 5}
+                    y1={py - ny * 5}
+                    x2={px + nx * 5}
+                    y2={py + ny * 5}
                     stroke="#FFF7ED"
-                    strokeWidth={1.6}
+                    strokeWidth={1.4}
                     strokeLinecap="round"
                   />
                 </g>
@@ -2073,7 +2391,7 @@ export function CampusMap3D({
     return (
       <g key={n.id}>
         {vertBadge && (
-          <g transform={`translate(${p.x},${p.y - (isEndpoint ? 50 : 24)})`} aria-hidden="true" pointerEvents="none">
+          <g transform={`translate(${p.x},${p.y - (isEndpoint ? 102 : 24)})`} aria-hidden="true" pointerEvents="none">
             <rect
               x={-20}
               y={-9}
@@ -2091,7 +2409,7 @@ export function CampusMap3D({
         )}
 
         {isEntrance && !vertBadge && (
-          <g transform={`translate(${p.x},${p.y - (isEndpoint ? 48 : 23)})`} aria-hidden="true" pointerEvents="none">
+          <g transform={`translate(${p.x},${p.y - (isEndpoint ? 102 : 23)})`} aria-hidden="true" pointerEvents="none">
             <rect
               x={-30}
               y={-9}
@@ -2384,12 +2702,14 @@ export function CampusMap3D({
                 {flEdges
                   .filter((e) => edgeIncidents.has(e.id))
                   .map((e) => {
-                    const a = projectNode(nodeMap.get(e.from_node_id)!)
-                    const b = projectNode(nodeMap.get(e.to_node_id)!)
+                    const projPts = getEdgeProjectedWaypoints(e)
+                    const midIdx = Math.floor((projPts.length - 1) / 2)
+                    const segA = projPts[midIdx] ?? projPts[0]
+                    const segB = projPts[midIdx + 1] ?? projPts[projPts.length - 1]
                     const inc = edgeIncidents.get(e.id)!
                     return renderIncidentBadge(
-                      (a.x + b.x) / 2,
-                      (a.y + b.y) / 2 - 14,
+                      (segA.x + segB.x) / 2,
+                      (segA.y + segB.y) / 2 - 14,
                       `inc-edge-${e.id}`,
                       `Tramo fuera de servicio: ${inc.description}`
                     )
@@ -2465,31 +2785,156 @@ export function CampusMap3D({
             const showOrigin = originNode && isNodeVisible(originNode)
             const showDest = destNode && isNodeVisible(destNode)
             const sameSpot = Boolean(showOrigin && showDest && originNode!.id === destNode!.id)
+            const shortName = (s: string) => (s.length > 25 ? `${s.slice(0, 24)}…` : s)
             return (
               <g pointerEvents="none">
                 {showOrigin &&
                   (() => {
                     const p = projectNode(originNode!)
+                    const ox = p.x + (sameSpot ? -20 : 0)
+                    const oy = p.y
                     return (
                       <g
-                        transform={`translate(${p.x + (sameSpot ? -15 : 0)}, ${p.y})`}
+                        transform={`translate(${ox}, ${oy})`}
                         role="img"
                         aria-label={`Tu ubicación actual: ${originNode!.name}${gpsActive ? ' (GPS activo)' : ''}`}
                       >
-                        <PersonAvatarAsset gpsActive={gpsActive} shadowFilterUrl={shadowFilterUrl} />
+                        {/* 3D Glowing Podium Beacon (Start) */}
+                        <ellipse
+                          cx={0}
+                          cy={2}
+                          rx={39}
+                          ry={23.5}
+                          fill="rgba(14, 165, 233, 0.10)"
+                          stroke="#38BDF8"
+                          strokeWidth={2}
+                          strokeDasharray="6 4"
+                        />
+                        <ellipse
+                          cx={0}
+                          cy={1}
+                          rx={24.5}
+                          ry={14.8}
+                          fill="rgba(14, 165, 233, 0.28)"
+                          stroke="#0EA5E9"
+                          strokeWidth={2.3}
+                        />
+                        <polygon
+                          points="-22,0 22,0 11,-58 -11,-58"
+                          fill="rgba(56, 189, 248, 0.14)"
+                        />
+                        <g transform="scale(1.32)">
+                          <PersonAvatarAsset gpsActive={gpsActive} shadowFilterUrl={shadowFilterUrl} />
+                        </g>
+                        {/* Floating 3D Callout Banner (Start) */}
+                        <g transform="translate(0, -72)">
+                          <rect
+                            x={-86}
+                            y={-18}
+                            width={172}
+                            height={34}
+                            rx={10}
+                            fill="#0369A1"
+                            stroke="#7DD3FC"
+                            strokeWidth={2}
+                            filter={shadowFilterUrl}
+                          />
+                          <polygon points="-7,16 7,16 0,23" fill="#0369A1" stroke="#7DD3FC" strokeWidth={1.5} />
+                          <text
+                            y={-4}
+                            textAnchor="middle"
+                            fontFamily="'Space Grotesk', system-ui, sans-serif"
+                            fontSize="9.5"
+                            fontWeight="800"
+                            fill="#E0F2FE"
+                          >
+                            📍 PUNTO DE INICIO
+                          </text>
+                          <text
+                            y={9.5}
+                            textAnchor="middle"
+                            fontSize="9.5"
+                            fontWeight="700"
+                            fill="#FFFFFF"
+                          >
+                            {shortName(originNode!.name)}
+                          </text>
+                        </g>
                       </g>
                     )
                   })()}
                 {showDest &&
                   (() => {
                     const p = projectNode(destNode!)
+                    const dx = p.x + (sameSpot ? 20 : 0)
+                    const dy = p.y
                     return (
                       <g
-                        transform={`translate(${p.x + (sameSpot ? 15 : 0)}, ${p.y})`}
+                        transform={`translate(${dx}, ${dy})`}
                         role="img"
                         aria-label={`Destino meta B: ${destNode!.name}`}
                       >
-                        <DestinationFlagAsset shadowFilterUrl={shadowFilterUrl} />
+                        {/* 3D Glowing Podium Beacon (Destination) */}
+                        <ellipse
+                          cx={0}
+                          cy={2}
+                          rx={39}
+                          ry={23.5}
+                          fill="rgba(16, 185, 129, 0.11)"
+                          stroke="#FACC15"
+                          strokeWidth={2}
+                          strokeDasharray="6 4"
+                        />
+                        <ellipse
+                          cx={0}
+                          cy={1}
+                          rx={24.5}
+                          ry={14.8}
+                          fill="rgba(16, 185, 129, 0.30)"
+                          stroke="#10B981"
+                          strokeWidth={2.3}
+                        />
+                        <polygon
+                          points="-22,0 22,0 11,-60 -11,-60"
+                          fill="rgba(250, 204, 21, 0.15)"
+                        />
+                        <g transform="scale(1.35)">
+                          <DestinationFlagAsset shadowFilterUrl={shadowFilterUrl} />
+                        </g>
+                        {/* Floating 3D Callout Banner (Destination) */}
+                        <g transform="translate(0, -74)">
+                          <rect
+                            x={-86}
+                            y={-18}
+                            width={172}
+                            height={34}
+                            rx={10}
+                            fill="#047857"
+                            stroke="#FACC15"
+                            strokeWidth={2}
+                            filter={shadowFilterUrl}
+                          />
+                          <polygon points="-7,16 7,16 0,23" fill="#047857" stroke="#FACC15" strokeWidth={1.5} />
+                          <text
+                            y={-4}
+                            textAnchor="middle"
+                            fontFamily="'Space Grotesk', system-ui, sans-serif"
+                            fontSize="9.5"
+                            fontWeight="800"
+                            fill="#FEF08A"
+                          >
+                            🏁 META · LLEGADA
+                          </text>
+                          <text
+                            y={9.5}
+                            textAnchor="middle"
+                            fontSize="9.5"
+                            fontWeight="700"
+                            fill="#FFFFFF"
+                          >
+                            {shortName(destNode!.name)}
+                          </text>
+                        </g>
                       </g>
                     )
                   })()}
@@ -2523,10 +2968,11 @@ export function CampusMap3D({
 
         <span className="inline-flex items-center gap-1.5">
           <svg width="28" height="12" aria-hidden="true">
-            <line x1="3" y1="6" x2="25" y2="6" stroke="#64748B" strokeWidth={8} strokeLinecap="round" />
-            <line x1="3" y1="6" x2="25" y2="6" stroke="#F8FAFC" strokeWidth={1.4} strokeDasharray="4 4" strokeLinecap="round" />
+            <line x1="3" y1="6" x2="25" y2="6" stroke={isDark ? '#1E293B' : '#CBD5E1'} strokeWidth={10} strokeLinecap="round" />
+            <line x1="3" y1="6" x2="25" y2="6" stroke={isDark ? '#0F172A' : '#E2E8F0'} strokeWidth={6} strokeLinecap="round" />
+            <line x1="3" y1="6" x2="25" y2="6" stroke="#94A3B8" strokeWidth={1.1} strokeDasharray="4 4" strokeLinecap="round" />
           </svg>
-          Calzada pavimentada
+          Calle / calzada tenue
         </span>
 
         <span className="inline-flex items-center gap-1.5">
