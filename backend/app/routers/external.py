@@ -2,15 +2,13 @@
 
 from fastapi import APIRouter
 
-from app.core.errors import APIError
+from app.schemas.external import WeatherResponse
+from app.services.weather_service import get_campus_weather
 
 router = APIRouter(prefix="/external")
 
 
-@router.get("/weather")
-async def get_campus_weather() -> dict[str, str]:
-    raise APIError(
-        status_code=501,
-        code="INTERNAL_ERROR",
-        message="Pendiente de implementación por Persona B (ver docs/openapi.yaml).",
-    )
+@router.get("/weather", response_model=WeatherResponse)
+async def get_weather() -> WeatherResponse:
+    """Return current campus weather from Open-Meteo (with 5-min cache and safe fallback)."""
+    return await get_campus_weather()

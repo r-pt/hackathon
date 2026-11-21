@@ -1,9 +1,10 @@
-"""FastAPI entrypoint (frozen in Fase 0 to avoid Git merge conflicts).
+"""FastAPI entrypoint for the unified CampusRoute API.
 
-Persona A owns: routers/{health,auth,campus,incidents}.py
-Persona B owns: routers/{routes,external}.py
+Persona A routers: health, auth, campus, incidents.
+Persona B routers: routes, external.
 """
 
+import logging
 import os
 
 from fastapi import FastAPI, Request
@@ -11,8 +12,11 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from app.core.config import get_settings
 from app.core.errors import APIError
 from app.routers import auth, campus, external, health, incidents, routes
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="CampusRoute API",
@@ -20,16 +24,21 @@ app = FastAPI(
     description="Optimizador de rutas universitarias accesibles (contrato en docs/openapi.yaml).",
 )
 
-raw_origins = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:4173")
+raw_origins = os.getenv("CORS_ORIGINS") or get_settings().cors_origins
 allowed_origins = [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
+    allow_origin_regex=r"^https://campusroute-frontend.*\.vercel\.app$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+def jsonable_errors(exc: RequestValidationError) -> list[dict]:
+    return [{"loc": list(e["loc"]), "msg": e["msg"], "type": e["type"]} for e in exc.errors()]
 
 
 @app.exception_handler(APIError)
@@ -47,7 +56,7 @@ async def handle_validation_error(
             "error": {
                 "code": "VALIDATION_ERROR",
                 "message": "Los datos enviados no cumplen con el contrato de la API.",
-                "details": {"fields": exc.errors()},
+                "details": {"fields": jsonable_errors(exc)},
             }
         },
     )
@@ -55,6 +64,7 @@ async def handle_validation_error(
 
 @app.exception_handler(Exception)
 async def handle_unexpected_error(_request: Request, _exc: Exception) -> JSONResponse:
+    logger.exception("Unhandled error")
     return JSONResponse(
         status_code=500,
         content={

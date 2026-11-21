@@ -16,8 +16,8 @@ services:
       - key: SUPABASE_JWT_SECRET
         sync: false
       - key: CORS_ORIGINS
-        value: http://localhost:5173
+        value: http://localhost:5173,https://campusroute-frontend.vercel.app
       - key: CAMPUS_LAT
-        value: "-12.0464"
+        value: "-33.0344"
       - key: CAMPUS_LON
-        value: "-77.0428"
+        value: "-71.5950"
