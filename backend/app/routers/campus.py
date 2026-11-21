@@ -1,21 +1,29 @@
-"""Mapa y ubicaciones del campus — Dueño: Persona A."""
+"""Campus map & locations router — Owner: Persona A (feat/backend-a)."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
 
-from app.core.errors import APIError
+from app.schemas.campus import CampusMapResponse, LocationsResponse
+from app.services import campus_service
 
 router = APIRouter(prefix="/campus")
 
 
-def _todo() -> APIError:
-    return APIError(status_code=501, code="INTERNAL_ERROR", message="Pendiente: Persona A")
+@router.get("/map", response_model=CampusMapResponse, operation_id="getCampusMap")
+def get_campus_map(
+    floor: int | None = Query(default=None, ge=1),
+) -> CampusMapResponse:
+    """Return the 2.5D campus graph and active incidents, optionally filtered by floor."""
+    return campus_service.get_campus_map(floor=floor)
 
 
-@router.get("/map")
-async def get_campus_map(floor: int | None = None) -> dict:
-    raise _todo()
-
-
-@router.get("/locations")
-async def list_campus_locations(search: str | None = None, floor: int | None = None) -> dict:
-    raise _todo()
+@router.get(
+    "/locations",
+    response_model=LocationsResponse,
+    operation_id="listCampusLocations",
+)
+def list_campus_locations(
+    search: str | None = Query(default=None),
+    floor: int | None = Query(default=None, ge=1),
+) -> LocationsResponse:
+    """Return selectable campus origin/destination locations."""
+    return campus_service.list_campus_locations(search=search, floor=floor)

@@ -1,12 +1,14 @@
-"""Integración externa Open-Meteo — Dueño: Persona B."""
+"""External integrations router (Open-Meteo) — Owner: Persona B (feat/backend-b)."""
 
 from fastapi import APIRouter
 
-from app.core.errors import APIError
+from app.schemas.external import WeatherResponse
+from app.services.weather_service import get_campus_weather
 
 router = APIRouter(prefix="/external")
 
 
-@router.get("/weather")
-async def get_campus_weather() -> dict:
-    raise APIError(status_code=501, code="INTERNAL_ERROR", message="Pendiente: Persona B")
+@router.get("/weather", response_model=WeatherResponse)
+async def get_weather() -> WeatherResponse:
+    """Return current campus weather from Open-Meteo (with 5-min cache and safe fallback)."""
+    return await get_campus_weather()

@@ -1,26 +1,53 @@
-"""Incidencias — Dueño: Persona A."""
+"""Incidents CRUD router — Owner: Persona A (feat/backend-a)."""
 
-from fastapi import APIRouter
+from typing import Literal
 
-from app.core.errors import APIError
+from fastapi import APIRouter, Depends, Query
+
+from app.core.auth import AuthenticatedUser, get_current_user
+from app.schemas.incidents import (
+    CreateIncidentRequest,
+    Incident,
+    IncidentsListResponse,
+    UpdateIncidentRequest,
+)
+from app.services import incidents_service
 
 router = APIRouter(prefix="/incidents")
 
 
-def _todo() -> APIError:
-    return APIError(status_code=501, code="INTERNAL_ERROR", message="Pendiente: Persona A")
+@router.get("", response_model=IncidentsListResponse, operation_id="listIncidents")
+def list_incidents(
+    status: Literal["active", "resolved", "all"] = Query(default="active"),
+) -> IncidentsListResponse:
+    return incidents_service.list_incidents(status=status)
 
 
-@router.get("")
-async def list_incidents(status: str = "active") -> dict:
-    raise _todo()
+@router.post(
+    "",
+    status_code=201,
+    response_model=Incident,
+    operation_id="createIncident",
+)
+def create_incident(
+    payload: CreateIncidentRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Incident:
+    return incidents_service.create_incident(payload=payload, user=current_user)
 
 
-@router.post("", status_code=201)
-async def create_incident() -> dict:
-    raise _todo()
-
-
-@router.patch("/{incident_id}")
-async def update_incident(incident_id: str) -> dict:
-    raise _todo()
+@router.patch(
+    "/{incidentId}",
+    response_model=Incident,
+    operation_id="updateIncident",
+)
+def update_incident(
+    incidentId: str,
+    payload: UpdateIncidentRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> Incident:
+    return incidents_service.update_incident(
+        incident_id=incidentId,
+        payload=payload,
+        user=current_user,
+    )

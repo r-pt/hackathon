@@ -1,21 +1,32 @@
-"""Auth y preferencias — Dueño: Persona A."""
+"""Auth & preferences router — Owner: Persona A (feat/backend-a)."""
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
-from app.core.errors import APIError
+from app.core.auth import (
+    AuthenticatedUser,
+    get_current_user,
+    get_or_create_user_profile,
+    update_user_preferences,
+)
+from app.schemas.auth import UpdatePreferencesRequest, UserProfile
 
 router = APIRouter(prefix="/auth")
 
 
-def _todo() -> APIError:
-    return APIError(status_code=501, code="INTERNAL_ERROR", message="Pendiente: Persona A")
+@router.get("/me", response_model=UserProfile, operation_id="getCurrentUser")
+def get_me(
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> UserProfile:
+    return get_or_create_user_profile(current_user)
 
 
-@router.get("/me")
-async def get_current_user() -> dict:
-    raise _todo()
-
-
-@router.patch("/preferences")
-async def update_preferences() -> dict:
-    raise _todo()
+@router.patch(
+    "/preferences",
+    response_model=UserProfile,
+    operation_id="updatePreferences",
+)
+def update_preferences(
+    payload: UpdatePreferencesRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+) -> UserProfile:
+    return update_user_preferences(current_user, payload)
