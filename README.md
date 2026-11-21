@@ -21,6 +21,10 @@ Repositorio oficial: [https://github.com/r-pt/hackathon](https://github.com/r-pt
 
 ---
 
+> **Nota / Disclaimer sobre el Mapa (Prototipo Demostrativo):** El mapa 3D/cenital incluido en este proyecto es un **prototipo funcional inspirado en UTFSM Casa Central** y **no refleja con exactitud arquitectónica ni geográfica los edificios reales de la universidad al pie de la letra**. Su propósito es servir como demostración práctica del problema que buscamos solucionar (ruteo accesible multicriterio, evasión de incidencias en vivo, protección ante lluvia, guiado GPS/voz y evacuación segura).
+
+---
+
 ## El Problema Planteado
 
 Orientarse en un campus universitario multinivel y con arquitectura compleja como **UTFSM Casa Central** presenta barreras cotidianas críticas, especialmente para estudiantes, docentes y visitantes con **movilidad reducida**:
