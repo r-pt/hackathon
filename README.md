@@ -36,13 +36,15 @@ Orientarse en un campus universitario multinivel y con arquitectura compleja com
 
 CampusRoute integra un grafo espacial multicapa del campus con ruteo inteligente, visualización interactiva y reportes comunitarios:
 
-1. **Motor de Ruteo Accesible Multi-Criterio (`A*` / `Dijkstra`)**
+1. **Motor de Ruteo Accesible Multi-Criterio (`A*` / `Dijkstra`) con Penalizaciones de Escaleras y Elevación**
    - **Modo Movilidad Reducida**: descarta automáticamente escaleras y tramos no accesibles (`is_accessible = false`), priorizando rampas y ascensores operativos y verificando accesibilidad sin escalones.
+   - **Penalizaciones Reales de Escaleras y Pendiente**: las variables de entorno `ENABLE_FLOOR_STAIRS`, `ENABLE_ELEVATION_STAIRS`, `STAIR_STEP_PENALTY_SECONDS` (`0.7 s/peldaño`) y `ELEVATION_SLOPE_PENALTY_FACTOR` (`1.5`) afectan directamente el filtrado de tramos, el peso del grafo y el tiempo estimado de viaje tanto en el backend FastAPI como en el respaldo offline `fallback.ts`.
    - **Evasión Dinámica de Incidencias**: excluye nodos y aristas con incidencias activas de severidad `blocking`, penaliza incidencias de tipo `warning` (`×1.8`) e informa qué conflictos fueron evitados (`avoided_conflicts`) o cuáles impiden llegar (`422 NO_ACCESSIBLE_ROUTE` con `blocking_incident_ids`).
    - **Protección ante Lluvia**: consulta el clima en vivo vía **Open-Meteo** (y permite activar **Simular lluvia** o **Preferir tramos cubiertos**), aplicando penalización (`×2.5`) sobre caminos descubiertos (`is_covered = false`) para privilegiar pasillos techados.
-   - **Transparencia algorítmica**: compara heurística 3D euclidiana (`A*`, con elevación `z` ponderada) frente a `Dijkstra`, exponiendo distancia, tiempo estimado, peso total y nodos explorados.
+   - **Selectores agrupados por edificio y modal completo de recorrido**: los selectores de origen y destino agrupan los destinos por edificio/zona (sin exponer selector técnico de algoritmo al usuario final), y el modal **`📋 Ver todos los pasos del recorrido`** presenta el itinerario completo con narración por voz.
 
-2. **Mapa Interactivo 3D Isométrico + Vista Cenital (Prototipo UTFSM Casa Central, `2200×1450`)**
+2. **Mapa Interactivo 3D Isométrico + Vista Cenital con Zoom/Paneo Vectorial (UTFSM Casa Central, `2200×1450`)**
+   - **Zoom y Paneo Vectorial SVG (`75%–300%`)**: controles `+` / `−` / `⟲ Restablecer`, zoom con rueda del mouse y paneo interactivo arrastrando el plano sin perder nitidez vectorial en ningún nivel de aumento.
    - **6 Variantes Arquitectónicas 3D No Rectangulares con Techos Translúcidos (`🏠 Techos 3D`)**:
      - **Edificio A (`bld-a`, Ingeniería / Frontis Gótico)**: planta en **"U"** de 8 vértices con explanada frontal hacia Av. España + **Torre Gótica del Reloj central** elevada con chapitel piramidal y esfera luminosa.
      - **Edificio B (`bld-b`, Biblioteca / Claustro)**: planta tipo **claustro con Patio Interior hundido** ajardinado y techo perimetral en anillo.
@@ -69,8 +71,13 @@ CampusRoute integra un grafo espacial multicapa del campus con ruteo inteligente
    - **Recálculo instantáneo y visibilidad de disponibilidad**: al crear o resolver una incidencia, la app recalcula de inmediato la ruta óptima y el mapa 3D, marca con franjas rojas **`⛔ CERRADO`** todo tramo bloqueado o conectado a un nodo bloqueado, muestra un aviso del desvío aplicado (también narrado por voz si `Auto-voz` está activo) y actualiza el contador en vivo **`🛣️ Caminos disponibles: X / 30`**.
    - **Motor de respaldo offline en navegador (`frontend/src/api/fallback.ts`)** sincronizado con `client.ts` y almacén local en memoria en backend (`backend/app/db/local_store.py`), garantizando continuidad ante caídas de red o sin Supabase.
 
-5. **Modo Oscuro Global (`🌙 Modo Oscuro`) y Diseño CSS 3D Táctil**
-   - Selector global **`🌙 Modo Oscuro` / `☀️ Modo Claro`** persistido en `localStorage`, que adapta tanto los paneles y modales como el motor 3D del mapa (losa nocturna `#0F172A`, calzadas oscuras, cuadrícula cian y edificios con ventanas iluminadas en `#FDE047`).
+5. **Modo Evacuación Inteligente (`🚨 Evacuar`), Números de Emergencia UTFSM y Compartir Ruta por QR**
+   - **Modo Evacuación Inteligente (`🚨 Evacuar`)**: evalúa en paralelo las 3 salidas seguras del campus (*Salida Norte Av. Placeres*, *Salida Oriente Portón Av. España* y *Acceso Principal Av. España*) respetando incidencias bloqueantes activas y movilidad reducida, selecciona automáticamente la salida más cercana/óptima, la traza en el mapa 3D y la anuncia inmediatamente por voz en español.
+   - **Números de Emergencia UTFSM Casa Central Valparaíso (`EmergencyContacts.tsx`)**: tarjeta dedicada de acceso rápido con enlaces directos `tel:` a Central de Emergencias (`+56 32 265 4222`), Supervisor de Seguridad 24/7 (`+569 7877 1654`), Atención de Salud Sansanito (`+56 32 265 4639` / `+569 7334 4188`) y Prevencionista de Riesgos (`+569 6229 5110`).
+   - **Compartir Ruta por Enlace + Código QR Offline (`ShareRouteModal.tsx`)**: genera un código QR vectorial SVG 100% offline con `qrcode` y un enlace compacto con parámetros de URL (`?from=&to=&rm=1&cov=1&rain=1&evac=1`) que hidrata automáticamente origen, destino, preferencias y modo evacuación al abrirlo en otro teléfono.
+
+6. **Modo Oscuro Global WCAG AA (`🌙 Modo Oscuro`) y Diseño CSS 3D Táctil**
+   - Selector global **`🌙 Modo Oscuro` / `☀️ Modo Claro`** persistido en `localStorage`, con contraste WCAG AA verificado en todos los paneles, selectores, modales y el motor 3D nocturno del mapa (losa `#0F172A`, calzadas oscuras, cuadrícula cian y edificios con ventanas iluminadas en `#FDE047`).
    - Superficies biseladas 3D (`.app-stage-bg`, `.panel-3d`, `.card-3d`, `.btn-3d`, `.pill-3d`) con luces especulares, sombras en capas y respeto automático a `prefers-reduced-motion`.
 
 ---
@@ -85,8 +92,9 @@ CampusRoute integra un grafo espacial multicapa del campus con ruteo inteligente
 - **React 19** + **TypeScript** + **Vite 8**
 - **Tailwind CSS v4** (`@tailwindcss/vite`)
 - **TanStack React Query v5** (`@tanstack/react-query`) para caché, sincronización e invalidación automática de mapa, incidencias y rutas
-- **Motor SVG 3D isométrico propio** con polígonos extruidos no rectangulares, techos 3D translúcidos y soporte Dual Theme (Claro / Oscuro) sin dependencias pesadas ni WebGL
-- **Web Speech API** (`window.speechSynthesis` en `es-CL` / `es-ES`) para narración de ruta completa y por paso
+- **Motor SVG 3D isométrico propio** con polígonos extruidos no rectangulares, techos 3D translúcidos, zoom/paneo vectorial (`75%–300%`) y soporte Dual Theme WCAG AA (Claro / Oscuro) sin dependencias WebGL
+- **`qrcode`**: generación vectorial SVG 100% offline de códigos QR para compartir rutas y evacuaciones por deep-link (`?from=&to=&rm=`)
+- **Web Speech API** (`window.speechSynthesis` en `es-CL` / `es-ES`) para narración de ruta completa, evacuación y giro por paso
 - **Web Geolocation API** (`navigator.geolocation.watchPosition`)
 
 ### Backend
@@ -104,7 +112,7 @@ CampusRoute integra un grafo espacial multicapa del campus con ruteo inteligente
 - **Stoplight Prism** (`@stoplight/prism-cli`) para mock server en desarrollo paralelo
 
 ### Testing y Verificación
-- **Pytest** (suite de pruebas de ruteo accesible, incidencias, clima e integración en `backend/tests/`)
+- **Pytest** (**43 tests** automatizados de ruteo accesible, penalizaciones de escaleras/elevación, incidencias, clima e integración en `backend/tests/`)
 - **TypeScript (`tsc --noEmit`)** y **Vite Production Build (`npm run build`)**
 
 ---
@@ -133,8 +141,8 @@ CampusRoute integra un grafo espacial multicapa del campus con ruteo inteligente
 ├── frontend/
 │   ├── src/
 │   │   ├── api/           # Tipos OpenAPI, cliente fetch, hooks TanStack Query y fallback.ts
-│   │   ├── components/    # CampusMap3D, RouteControls, RouteDirections, IncidentModal, AuthModal
-│   │   ├── App.tsx        # Layout principal, estado GPS y sincronización de vistas
+│   │   ├── components/    # CampusMap3D, RouteControls, RouteDirections, IncidentModal, AuthModal, EmergencyContacts, ShareRouteModal
+│   │   ├── App.tsx        # Layout principal, estado GPS, modo evacuación, deep-links QR y sincronización de vistas
 │   │   └── index.css
 │   ├── .env.example
 │   ├── package.json
@@ -252,6 +260,10 @@ Y configura `VITE_API_URL=http://localhost:4010` en `frontend/.env`.
 ---
 
 ## Registro de Cambios Recientes
+
+- **Modo Evacuación Inteligente (`🚨 Evacuar`), Números de Emergencia UTFSM y Compartir / QR Offline**: evaluación simultánea de las 3 salidas seguras del campus con incidencias y movilidad reducida + narración por voz inmediata, tarjeta `EmergencyContacts.tsx` con enlaces `tel:` directos, y modal `ShareRouteModal.tsx` con QR SVG offline (`qrcode`) e hidratación por URL (`?from=&to=&rm=1&cov=1&rain=1&evac=1`).
+- **Penalizaciones reales de escaleras/elevación, Zoom/Paneo SVG, Selectores por Edificio y Contraste WCAG AA**: activación de `enable_floor_stairs`, `enable_elevation_stairs`, `stair_step_penalty_seconds` y `elevation_slope_penalty_factor` en ruteo y tiempo estimado (43 tests en Pytest), zoom vectorial `75%–300%` + paneo en `CampusMap3D`, selectores agrupados por edificio, modal `📋 Ver todos los pasos del recorrido` y contraste WCAG AA completo en Modo Oscuro.
+- **Calles ortogonales 90° (`2200×1450`), Textura de Piso 3D y Podios de Inicio/Llegada**: trazado 100% ortogonal con pasos de cebra en esquinas, losas texturizadas con parterres verdes y podios 3D luminosos **`📍 PUNTO DE INICIO`** / **`🏁 META · LLEGADA`**.
 
 - **Variantes arquitectónicas 3D + Red Vial Pavimentada (UTFSM Casa Central)**: formas 3D en `U` con Torre Gótica (`bld-a`), claustro con patio hundido (`bld-b`), `L` (`bld-c`), `T` escalonado (`bld-m`), doble nave en `H` con diente de sierra (`bld-f`) y octágono achaflanado (`bld-p`); 4 plazas/cruces pavimentados intermedios (`cc-explanada-espana`, `cc-patio-central`, `cc-paseo-poniente`, `cc-terraza-placeres`) y 10 tramos de calzada pavimentada (`cc-e21..cc-e30`).
 - **Actualización en vivo de caminos por incidencias + Modo Oscuro**: recálculo instantáneo al reportar o resolver bloqueos, marcado visual `⛔ CERRADO` y contador `🛣️ Caminos disponibles: X / 30` en tiempo real, más selector global `🌙 Modo Oscuro` / `☀️ Modo Claro` con edificios nocturnos iluminados.

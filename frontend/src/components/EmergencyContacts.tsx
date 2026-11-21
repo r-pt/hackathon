@@ -1,4 +1,14 @@
-export function EmergencyContacts() {
+export interface EmergencyContactsProps {
+  onEvacuate?: () => void
+  evacuating?: boolean
+  evacuationActive?: boolean
+}
+
+export function EmergencyContacts({
+  onEvacuate,
+  evacuating = false,
+  evacuationActive = false,
+}: EmergencyContactsProps) {
   return (
     <section
       id="emergency-contacts"
@@ -16,6 +26,22 @@ export function EmergencyContacts() {
           UTFSM Casa Central Valparaíso
         </p>
       </div>
+
+      {onEvacuate && (
+        <button
+          type="button"
+          onClick={onEvacuate}
+          disabled={evacuating}
+          aria-busy={evacuating}
+          className="btn-3d-primary mb-3 flex min-h-10 w-full items-center justify-center gap-1.5 rounded-xl bg-[#DC2626] px-3.5 py-2 text-xs font-bold text-white transition-all duration-150 hover:bg-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {evacuating
+            ? 'Calculando salida segura…'
+            : evacuationActive
+              ? '🔄 Recalcular evacuación'
+              : '🚨 Calcular ruta de evacuación ahora'}
+        </button>
+      )}
 
       <ul className="grid gap-2.5" role="list">
         <li className="card-3d grid gap-1.5 rounded-xl border border-red-200/80 bg-red-50/50 p-3 dark:border-red-900/60 dark:bg-slate-800/90">

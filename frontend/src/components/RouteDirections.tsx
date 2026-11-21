@@ -125,6 +125,7 @@ export interface FullRouteStepsModalProps {
   speakingStepOrder: number | null
   onSpeakRoute: () => void
   onSpeakStep: (stepOrder: number, instruction: string) => void
+  onOpenShareModal?: () => void
 }
 
 export function FullRouteStepsModal({
@@ -138,6 +139,7 @@ export function FullRouteStepsModal({
   speakingStepOrder,
   onSpeakRoute,
   onSpeakStep,
+  onOpenShareModal,
 }: FullRouteStepsModalProps) {
   const dialogRef = useRef<HTMLDialogElement | null>(null)
   const pressedOutsideRef = useRef(false)
@@ -206,14 +208,28 @@ export function FullRouteStepsModal({
           </p>
         </div>
 
-        <button
-          type="button"
-          autoFocus
-          onClick={() => onOpenChange(false)}
-          className="btn-3d min-h-10 rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
-        >
-          Cerrar
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {onOpenShareModal && (
+            <button
+              type="button"
+              onClick={() => {
+                onOpenChange(false)
+                onOpenShareModal()
+              }}
+              className="btn-3d min-h-10 rounded-xl border border-sky-300 bg-sky-50 px-3 py-1.5 text-xs font-bold text-sky-900 transition-colors hover:bg-sky-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] dark:border-sky-700 dark:bg-sky-950/80 dark:text-sky-200 dark:hover:bg-sky-900/80"
+            >
+              🔗 Compartir / QR
+            </button>
+          )}
+          <button
+            type="button"
+            autoFocus
+            onClick={() => onOpenChange(false)}
+            className="btn-3d min-h-10 rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+          >
+            Cerrar
+          </button>
+        </div>
       </div>
 
       <div className="mt-4 grid gap-3">
@@ -382,6 +398,7 @@ export interface RouteDirectionsProps {
   destName?: string | null
   fullStepsOpen?: boolean
   onFullStepsOpenChange?: (open: boolean) => void
+  onOpenShareModal?: () => void
 }
 
 export function RouteDirections({
@@ -395,6 +412,7 @@ export function RouteDirections({
   destName,
   fullStepsOpen,
   onFullStepsOpenChange,
+  onOpenShareModal,
 }: RouteDirectionsProps) {
   const [isSpeakingAll, setIsSpeakingAll] = useState(false)
   const [speakingStepOrder, setSpeakingStepOrder] = useState<number | null>(null)
@@ -592,14 +610,27 @@ export function RouteDirections({
           </div>
         )}
 
-        <button
-          type="button"
-          onClick={() => setModalOpen(true)}
-          className="btn-3d-primary flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white transition-all duration-150 hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] dark:bg-sky-600 dark:text-white dark:hover:bg-sky-500"
-        >
-          <span aria-hidden="true">📋</span>
-          <span>Ver todos los pasos del recorrido ({totalSteps})</span>
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => setModalOpen(true)}
+            className="btn-3d-primary flex min-h-10 flex-1 items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white transition-all duration-150 hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] dark:bg-sky-600 dark:text-white dark:hover:bg-sky-500"
+          >
+            <span aria-hidden="true">📋</span>
+            <span>Ver todos los pasos ({totalSteps})</span>
+          </button>
+
+          {onOpenShareModal && (
+            <button
+              type="button"
+              onClick={onOpenShareModal}
+              className="btn-3d flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-sky-300 bg-sky-50 px-3 py-2 text-xs font-bold text-sky-900 transition-colors hover:bg-sky-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] dark:border-sky-700 dark:bg-sky-950/80 dark:text-sky-200 dark:hover:bg-sky-900/80"
+            >
+              <span aria-hidden="true">🔗</span>
+              <span>Compartir / QR</span>
+            </button>
+          )}
+        </div>
 
         <ol
           className="ml-3 grid gap-3 border-l-2 border-slate-200 pl-4 dark:border-slate-700"
@@ -760,6 +791,7 @@ export function RouteDirections({
           speakingStepOrder={speakingStepOrder}
           onSpeakRoute={handleSpeakRoute}
           onSpeakStep={handleSpeakStep}
+          onOpenShareModal={onOpenShareModal}
         />
       )}
     </section>

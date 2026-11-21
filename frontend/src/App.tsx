@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { apiClient } from '@/api/client'
 import {
   getAuthToken,
   queryKeys,
@@ -14,6 +15,7 @@ import {
 } from '@/api/hooks'
 import type {
   CalculateRouteRequest,
+  CalculateRouteResponse,
   LocationItem,
   RouteStep,
   SearchAlgorithm,
@@ -25,8 +27,16 @@ import { RouteDirections, speakSpanish, stopSpeech } from '@/components/RouteDir
 import { IncidentModal } from '@/components/IncidentModal'
 import { AuthModal } from '@/components/AuthModal'
 import { EmergencyContacts } from '@/components/EmergencyContacts'
+import { ShareRouteModal } from '@/components/ShareRouteModal'
 
 type FloorView = 'stacked' | number
+
+interface EvacuationSummary {
+  exitName: string
+  distanceM: number
+  timeMin: number
+  alreadyAtExit?: boolean
+}
 
 const UTFSM_LAT = -33.0344
 const UTFSM_LON = -71.595
@@ -34,18 +44,63 @@ const CAMPUS_MAX_RANGE_M = 800
 const METERS_PER_DEG_LAT = 111_320
 const METERS_PER_DEG_LON = METERS_PER_DEG_LAT * Math.cos((UTFSM_LAT * Math.PI) / 180)
 const DARK_MODE_STORAGE_KEY = 'rutacampus_dark_mode'
+const SAFE_EXIT_IDS = ['cc-salida-placeres', 'cc-salida-oriente', 'cc-acceso-espana']
 
 const INITIAL_AVOID_STAIRS =
   import.meta.env.VITE_DEFAULT_AVOID_STAIRS === 'true' ||
   import.meta.env.VITE_ENABLE_FLOOR_STAIRS === 'false' ||
   import.meta.env.VITE_ENABLE_ELEVATION_STAIRS === 'false'
 
+function parseInitialUrlState() {
+  if (typeof window === 'undefined') {
+    return {
+      from: undefined as string | undefined,
+      to: undefined as string | undefined,
+      rm: undefined as boolean | undefined,
+      cov: undefined as boolean | undefined,
+      rain: false,
+      evac: false,
+      hasExplicitPrefs: false,
+    }
+  }
+  const params = new URLSearchParams(window.location.search)
+  const from = params.get('from')?.trim() || undefined
+  const to = params.get('to')?.trim() || undefined
+  const hasRm = params.has('rm')
+  const hasCov = params.has('cov')
+  const rm = hasRm ? params.get('rm') === '1' || params.get('rm') === 'true' : undefined
+  const cov = hasCov ? params.get('cov') === '1' || params.get('cov') === 'true' : undefined
+  const rain = params.get('rain') === '1' || params.get('rain') === 'true'
+  const evac = params.get('evac') === '1' || params.get('evac') === 'true'
+  return {
+    from,
+    to,
+    rm,
+    cov,
+    rain,
+    evac,
+    hasExplicitPrefs: hasRm || hasCov,
+  }
+}
+
 export function App() {
-  const [originId, setOriginId] = useState<string | undefined>(undefined)
-  const [destId, setDestId] = useState<string | undefined>(undefined)
-  const [reducedMobility, setReducedMobility] = useState<boolean>(INITIAL_AVOID_STAIRS)
-  const [preferCovered, setPreferCovered] = useState<boolean>(false)
-  const [simulateRain, setSimulateRain] = useState<boolean>(false)
+  const initialUrlRef = useRef<ReturnType<typeof parseInitialUrlState> | null>(null)
+  if (!initialUrlRef.current) {
+    initialUrlRef.current = parseInitialUrlState()
+  }
+  const urlHydratedPrefsRef = useRef<boolean>(initialUrlRef.current.hasExplicitPrefs)
+
+  const [originId, setOriginId] = useState<string | undefined>(() => initialUrlRef.current?.from)
+  const [destId, setDestId] = useState<string | undefined>(() => initialUrlRef.current?.to)
+  const [reducedMobility, setReducedMobility] = useState<boolean>(
+    () => initialUrlRef.current?.rm ?? INITIAL_AVOID_STAIRS,
+  )
+  const [preferCovered, setPreferCovered] = useState<boolean>(
+    () => initialUrlRef.current?.cov ?? false,
+  )
+  const [simulateRain, setSimulateRain] = useState<boolean>(
+    () => initialUrlRef.current?.rain ?? false,
+  )
   const [algorithm, setAlgorithm] = useState<SearchAlgorithm>('astar')
   const [floorView, setFloorView] = useState<FloorView>('stacked')
   const [autoVoice, setAutoVoice] = useState<boolean>(true)
@@ -53,6 +108,13 @@ export function App() {
     if (typeof window === 'undefined') return false
     return window.localStorage.getItem(DARK_MODE_STORAGE_KEY) === 'true'
   })
+
+  const [evacuationMode, setEvacuationMode] = useState<boolean>(
+    () => initialUrlRef.current?.evac ?? false,
+  )
+  const [evacuating, setEvacuating] = useState<boolean>(false)
+  const [evacuationSummary, setEvacuationSummary] = useState<EvacuationSummary | null>(null)
+  const [evacuationError, setEvacuationError] = useState<string | null>(null)
 
   const [gpsRealActive, setGpsRealActive] = useState<boolean>(false)
   const [gpsStatusMessage, setGpsStatusMessage] = useState<string | null>(null)
@@ -64,6 +126,7 @@ export function App() {
   const [incidentModalOpen, setIncidentModalOpen] = useState<boolean>(false)
   const [authModalOpen, setAuthModalOpen] = useState<boolean>(false)
   const [fullStepsModalOpen, setFullStepsModalOpen] = useState<boolean>(false)
+  const [shareModalOpen, setShareModalOpen] = useState<boolean>(false)
   const [token, setToken] = useState<string | null>(() => getAuthToken())
   const queryClient = useQueryClient()
 
@@ -97,7 +160,7 @@ export function App() {
   const updatePreferences = useUpdatePreferences()
 
   useEffect(() => {
-    if (meQuery.data) {
+    if (meQuery.data && !urlHydratedPrefsRef.current) {
       setReducedMobility(meQuery.data.reduced_mobility)
       setPreferCovered(meQuery.data.prefer_covered)
     }
@@ -218,6 +281,20 @@ export function App() {
     )
   }, [destId, mapQuery.data, locations])
 
+  const shareUrl = useMemo(() => {
+    if (typeof window === 'undefined') return ''
+    const params = new URLSearchParams()
+    if (originId) params.set('from', originId)
+    if (destId) params.set('to', destId)
+    if (reducedMobility) params.set('rm', '1')
+    if (preferCovered) params.set('cov', '1')
+    if (simulateRain) params.set('rain', '1')
+    if (evacuationMode) params.set('evac', '1')
+    const qs = params.toString()
+    const base = `${window.location.origin}${window.location.pathname}`
+    return qs ? `${base}?${qs}` : base
+  }, [originId, destId, reducedMobility, preferCovered, simulateRain, evacuationMode])
+
   const routeRequest: CalculateRouteRequest | null = useMemo(() => {
     if (!originId || !destId || originId === destId) return null
     return {
@@ -232,6 +309,117 @@ export function App() {
   }, [originId, destId, reducedMobility, preferCovered, simulateRain, algorithm])
 
   const routeQuery = useCalculateRoute(routeRequest)
+
+  const handleEvacuate = useCallback(async () => {
+    const nodes = mapQuery.data?.nodes ?? []
+    const nodeIds = new Set(nodes.map((n) => n.id))
+    let candidateExits = SAFE_EXIT_IDS.filter((id) => nodeIds.has(id))
+    if (candidateExits.length === 0) {
+      candidateExits = nodes.filter((n) => n.node_type === 'entrance').map((n) => n.id)
+    }
+
+    const startId = originId ?? (nodeIds.has('cc-edificio-a-p1') ? 'cc-edificio-a-p1' : nodes[0]?.id)
+    if (!startId || candidateExits.length === 0) {
+      setEvacuationError(
+        'No se pudieron cargar las salidas del campus. Llama de inmediato a Central de Emergencias (+56 32 265 4222) o Supervisor 24/7 (+569 7877 1654).',
+      )
+      return
+    }
+
+    if (candidateExits.includes(startId)) {
+      const exitName = nodes.find((n) => n.id === startId)?.name ?? startId
+      setEvacuationMode(true)
+      setEvacuationError(null)
+      setEvacuationSummary({
+        exitName,
+        distanceM: 0,
+        timeMin: 0,
+        alreadyAtExit: true,
+      })
+      const alreadyMsg = `✅ Ya estás en una salida segura del campus (${exitName}).`
+      setIncidentNotice(alreadyMsg)
+      speakSpanish(`Ya estás en una salida segura del campus: ${exitName}.`)
+      if (typeof document !== 'undefined') {
+        document
+          .getElementById('emergency-contacts')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      }
+      return
+    }
+
+    setEvacuating(true)
+    setEvacuationError(null)
+    try {
+      const results = await Promise.allSettled(
+        candidateExits.map((exitId) =>
+          apiClient.calculateRoute({
+            origin_node_id: startId,
+            destination_node_id: exitId,
+            reduced_mobility: reducedMobility,
+            prefer_covered: preferCovered,
+            use_live_weather: true,
+            simulate_rain: simulateRain,
+            algorithm: 'astar',
+          }),
+        ),
+      )
+
+      const fulfilled: CalculateRouteResponse[] = []
+      for (const res of results) {
+        if (res.status === 'fulfilled') {
+          fulfilled.push(res.value)
+        }
+      }
+
+      if (fulfilled.length === 0) {
+        setEvacuationMode(true)
+        setEvacuationSummary(null)
+        setEvacuationError(
+          'Todas las rutas a las salidas seguras están bloqueadas con las incidencias actuales. Llama de inmediato a Central de Emergencias (+56 32 265 4222) o Supervisor de Seguridad 24/7 (+569 7877 1654).',
+        )
+        speakSpanish(
+          'Alerta de evacuación. Las salidas se encuentran bloqueadas. Llama de inmediato a Central de Emergencias al +56 32 265 4222.',
+        )
+        return
+      }
+
+      fulfilled.sort((a, b) => {
+        const wDiff = a.graph_stats.total_weight - b.graph_stats.total_weight
+        if (Math.abs(wDiff) > 0.001) return wDiff
+        return a.metrics.total_distance_m - b.metrics.total_distance_m
+      })
+      const bestRoute = fulfilled[0]
+      const exitName =
+        nodes.find((n) => n.id === bestRoute.destination_node_id)?.name ??
+        bestRoute.destination_node_id
+
+      setOriginId(startId)
+      setDestId(bestRoute.destination_node_id)
+      setEvacuationMode(true)
+      setEvacuationSummary({
+        exitName,
+        distanceM: bestRoute.metrics.total_distance_m,
+        timeMin: bestRoute.metrics.estimated_time_min,
+      })
+      setFloorView('stacked')
+      setReachedGoal(false)
+      setAutoWalking(false)
+
+      const firstInstruction = bestRoute.steps[0]?.instruction ?? ''
+      speakSpanish(
+        `Modo evacuación activado. Dirígete a la salida segura más cercana: ${exitName}, a ${bestRoute.metrics.total_distance_m} metros. ${firstInstruction}`,
+      )
+    } finally {
+      setEvacuating(false)
+    }
+  }, [mapQuery.data?.nodes, originId, reducedMobility, preferCovered, simulateRain])
+
+  const handleExitEvacuation = () => {
+    setEvacuationMode(false)
+    setEvacuationSummary(null)
+    setEvacuationError(null)
+    stopSpeech()
+  }
 
   const walkPathRef = useRef<string[]>([])
   const walkStepsRef = useRef<RouteStep[]>([])
@@ -440,6 +628,9 @@ export function App() {
   const handleSelectNode = (nodeId: string) => {
     setAutoWalking(false)
     setReachedGoal(false)
+    setEvacuationMode(false)
+    setEvacuationSummary(null)
+    setEvacuationError(null)
     if (!originId || (originId && destId)) {
       setOriginId(nodeId)
       if (nodeId === destId) {
@@ -472,9 +663,18 @@ export function App() {
       setDestId(patch.destId || undefined)
       setAutoWalking(false)
       setReachedGoal(false)
+      setEvacuationMode(false)
+      setEvacuationSummary(null)
+      setEvacuationError(null)
     }
-    if (patch.reducedMobility !== undefined) setReducedMobility(patch.reducedMobility)
-    if (patch.preferCovered !== undefined) setPreferCovered(patch.preferCovered)
+    if (patch.reducedMobility !== undefined) {
+      urlHydratedPrefsRef.current = false
+      setReducedMobility(patch.reducedMobility)
+    }
+    if (patch.preferCovered !== undefined) {
+      urlHydratedPrefsRef.current = false
+      setPreferCovered(patch.preferCovered)
+    }
     if (patch.simulateRain !== undefined) setSimulateRain(patch.simulateRain)
     if (patch.algorithm !== undefined) setAlgorithm(patch.algorithm)
     if (patch.floorView !== undefined) setFloorView(patch.floorView)
@@ -498,6 +698,12 @@ export function App() {
   const isRefreshingGraph = mapQuery.isFetching || locationsQuery.isFetching
   const hasActiveRoute = Boolean(routeQuery.data && routeQuery.data.path_node_ids.length >= 2)
   const isGpsLive = gpsRealActive || autoWalking
+
+  const activeEvacExitName = evacuationSummary?.exitName ?? selectedDestName
+  const activeEvacDist =
+    evacuationSummary?.distanceM ?? routeQuery.data?.metrics.total_distance_m
+  const activeEvacTime =
+    evacuationSummary?.timeMin ?? routeQuery.data?.metrics.estimated_time_min
 
   return (
     <div
@@ -616,6 +822,17 @@ export function App() {
 
             <button
               type="button"
+              onClick={() => void handleEvacuate()}
+              disabled={evacuating}
+              aria-busy={evacuating}
+              className="btn-3d-primary inline-flex min-h-9 items-center gap-1 rounded-full bg-[#DC2626] px-3.5 py-1 text-xs font-bold text-white transition-all duration-150 hover:bg-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <span aria-hidden="true">🚨</span>
+              <span>{evacuating ? 'Calculando…' : 'Evacuar'}</span>
+            </button>
+
+            <button
+              type="button"
               onClick={() => setDarkMode((prev) => !prev)}
               aria-pressed={darkMode}
               className="btn-3d min-h-9 rounded-full border border-slate-300 bg-white px-3.5 py-1 text-xs font-semibold text-slate-800 transition-all duration-150 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
@@ -673,6 +890,63 @@ export function App() {
           </div>
         </div>
       </header>
+
+      {(evacuationMode || evacuationError) && (
+        <div
+          role="alert"
+          className="mx-auto mt-3 flex w-full max-w-[1440px] items-center justify-between gap-3 px-4"
+        >
+          <div className="card-3d flex w-full flex-wrap items-center justify-between gap-3 rounded-2xl border-2 border-red-500 bg-red-50 px-4 py-3 text-xs text-red-950 dark:border-red-700 dark:bg-red-950/80 dark:text-red-100">
+            <div className="grid gap-0.5">
+              <p className="font-display text-sm font-bold text-red-900 dark:text-red-100">
+                🚨 Modo Evacuación Inteligente Activo
+              </p>
+              {evacuationError ? (
+                <p className="font-medium text-red-900 dark:text-red-200">{evacuationError}</p>
+              ) : evacuationSummary?.alreadyAtExit ? (
+                <p className="font-semibold text-emerald-900 dark:text-emerald-200">
+                  ✅ Ya te encuentras en una salida segura del campus:{' '}
+                  <strong>{activeEvacExitName}</strong>.
+                </p>
+              ) : (
+                <p className="font-medium text-red-900 dark:text-red-200">
+                  Salida segura más cercana:{' '}
+                  <strong>{activeEvacExitName ?? 'Calculando salida…'}</strong>
+                  {activeEvacDist !== undefined && activeEvacTime !== undefined && (
+                    <span>
+                      {' '}
+                      ({activeEvacDist} m · {activeEvacTime} min)
+                    </span>
+                  )}
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <a
+                href="tel:+56322654222"
+                className="btn-3d-primary inline-flex min-h-9 items-center gap-1 rounded-xl bg-[#DC2626] px-3 py-1.5 text-xs font-bold text-white hover:bg-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626]"
+              >
+                📞 +56 32 265 4222
+              </a>
+              <button
+                type="button"
+                onClick={() => setShareModalOpen(true)}
+                className="btn-3d inline-flex min-h-9 items-center gap-1 rounded-xl border border-sky-300 bg-white px-3 py-1.5 text-xs font-bold text-sky-900 hover:bg-sky-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] dark:border-sky-700 dark:bg-slate-800 dark:text-sky-200 dark:hover:bg-slate-700"
+              >
+                🔗 Compartir / QR
+              </button>
+              <button
+                type="button"
+                onClick={handleExitEvacuation}
+                className="btn-3d min-h-9 rounded-xl border border-red-300 bg-white px-3 py-1.5 text-xs font-bold text-red-900 hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] dark:border-red-700 dark:bg-slate-800 dark:text-red-200 dark:hover:bg-slate-700"
+              >
+                Finalizar evacuación
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {incidentNotice && (
         <div
@@ -782,6 +1056,7 @@ export function App() {
               destName={selectedDestName}
               fullStepsOpen={fullStepsModalOpen}
               onFullStepsOpenChange={setFullStepsModalOpen}
+              onOpenShareModal={() => setShareModalOpen(true)}
               onToggleAutoVoice={() =>
                 setAutoVoice((prev) => {
                   const next = !prev
@@ -792,7 +1067,11 @@ export function App() {
             />
           </div>
 
-          <EmergencyContacts />
+          <EmergencyContacts
+            onEvacuate={() => void handleEvacuate()}
+            evacuating={evacuating}
+            evacuationActive={evacuationMode}
+          />
         </aside>
       </main>
 
@@ -822,6 +1101,18 @@ export function App() {
           setAuthToken(newToken)
           setAuthModalOpen(false)
         }}
+      />
+
+      <ShareRouteModal
+        open={shareModalOpen}
+        onClose={() => setShareModalOpen(false)}
+        shareUrl={shareUrl}
+        originName={selectedOriginName ?? 'Origen'}
+        destName={selectedDestName ?? 'Destino'}
+        route={routeQuery.data}
+        reducedMobility={reducedMobility}
+        preferCovered={preferCovered}
+        evacuationMode={evacuationMode}
       />
     </div>
   )
