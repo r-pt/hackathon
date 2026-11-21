@@ -42,18 +42,34 @@ CampusRoute integra un grafo espacial multicapa del campus con ruteo inteligente
    - **Protección ante Lluvia**: consulta el clima en vivo vía **Open-Meteo** (y permite activar **Simular lluvia** o **Preferir tramos cubiertos**), aplicando penalización (`×2.5`) sobre caminos descubiertos (`is_covered = false`) para privilegiar pasillos techados.
    - **Transparencia algorítmica**: compara heurística 3D euclidiana (`A*`, con elevación `z` ponderada) frente a `Dijkstra`, exponiendo distancia, tiempo estimado, peso total y nodos explorados.
 
-2. **Mapa Interactivo 3D Isométrico + Vista Cenital (UTFSM Casa Central)**
-   - **6 edificios delimitados por color (`A, B, C, F, M, P`)** con volúmenes 3D, placas de señalética superiores y separación vertical clara entre **Piso 1** y **Piso 2** (más vista individual por piso).
-   - **Rotación interactiva `0° / 90° / 180° / 270°`** con contra-rotación automática de etiquetas, placas y pines para mantener siempre legible el texto, además de alternancia entre vista **3D Isométrica** y **Vista Cenital**.
-   - **Capas visuales accesibles (no solo color)**: pasillos techados con halo/cobertura diferenciada, conectores verticales visibles para ascensores y escaleras, indicador de **Persona con radar** para la ubicación actual (Origen `A` / GPS) y **Banderín** para el destino (`B`), junto con navegación completa por teclado y respeto a `prefers-reduced-motion`.
+2. **Mapa Interactivo 3D Isométrico + Vista Cenital (Prototipo UTFSM Casa Central, `1600×1050`)**
+   - **6 Variantes Arquitectónicas 3D No Rectangulares con Techos Translúcidos (`🏠 Techos 3D`)**:
+     - **Edificio A (`bld-a`, Ingeniería / Frontis Gótico)**: planta en **"U"** de 8 vértices con explanada frontal hacia Av. España + **Torre Gótica del Reloj central** elevada con chapitel piramidal y esfera luminosa.
+     - **Edificio B (`bld-b`, Biblioteca / Claustro)**: planta tipo **claustro con Patio Interior hundido** ajardinado y techo perimetral en anillo.
+     - **Edificio C (`bld-c`, Ala Norte Av. Placeres)**: planta en **"L"** con cubierta compuesta a cuatro aguas.
+     - **Edificio M (`bld-m`, Informática Poniente)**: pabellón escalonado en **"T"** con cubierta cruzada translúcida.
+     - **Edificio F (`bld-f`, Sur-Oriente / Talleres)**: doble nave industrial en **"H"** con techo en **diente de sierra** (`sawtooth`).
+     - **Edificio P (`bld-p`, Federación)**: pabellón **octagonal achaflanado** con cubierta facetada de 8 faldones.
+     - Todos los techos 3D incorporan **tragaluces translúcidos** que permiten ver y hacer clic en los nodos interiores (`Piso 1` y `Piso 2`).
+   - **Red Vial Pavimentada, Plazoletas, 2 Salidas y Piso 2 Seleccionable (`20` nodos, `30` tramos, `17` destinos)**:
+     - **4 nodos de calzadas/plazas pavimentadas** (*Explanada Monumental Av. España*, *Plaza Central del Claustro*, *Paseo Pavimentado Poniente — Mirador Cancha* y *Crucero Pavimentado Terraza Placeres*) conectados mediante **calzadas pavimentadas 3D** con sombra proyectada sobre la losa, bordillo de hormigón y eje central segmentado.
+     - **4 destinos en Piso 2** (`Aula A-201 — Ingeniería`, `Sala de Estudio B-202 — Biblioteca`, `Ascensor Edificio A Piso 2` y `Ascensor Edificio B Piso 2`) unidos al Piso 1 tanto por **ascensores verticales 3D** (`🛗 ASCENSOR 1↔2`) como por **escaleras interiores 3D en zigzag** (`🪜 ESCALERA P1↔P2`), además de escalinatas exteriores de elevación (`🪜 Δz`).
+     - **2 nuevas Salidas señalizadas (`🚪 SALIDA`)**: *Salida Norte — Av. Placeres* y *Salida Oriente — Portón Av. España*, junto a los accesos principales.
+   - **Orientación Espacial 3D**: separación vertical amplia entre **Piso 1** y **Piso 2**, rotación interactiva `0° / 90° / 180° / 270°` con contra-rotación automática de etiquetas, vista **3D Isométrica / Cenital**, **Estrella Polar 3D interactiva (`CompassRose`)** con puntos cardinales reales y referencias en los bordes (`N · Av. Placeres`, `S · Av. España`, `O · Informática`, `E · Jardines / Ed. F`).
 
-3. **Modo GPS en Tiempo Real y Simulador de Recorrido**
-   - Integración directa con `navigator.geolocation.watchPosition` georreferenciado al plano de UTFSM Casa Central para actualizar la posición en vivo sobre el grafo del campus.
+3. **Modo GPS en Tiempo Real, Instrucciones por Voz y Simulador de Recorrido**
+   - **Síntesis de Voz en Español (`Web Speech API`)**: botón **`🔊 Escuchar ruta`** / **`⏹ Detener voz`** con resaltado automático del paso narrado, botón **`🔊`** individual en cada paso y toggle **`🔈 Auto-voz`** que anuncia cada giro, cambio de piso y llegada en modo GPS.
+   - **GPS en vivo (`navigator.geolocation.watchPosition`)**: georreferenciado al plano de UTFSM Casa Central (`1600×1050`) con ícono de **Persona con radar** para la ubicación actual (Origen `A` / GPS) y **Banderín** para la meta (`B`).
    - **Simulador integrado paso a paso y auto-recorrido** que permite demostrar y probar el desplazamiento en tiempo real incluso en interiores o fuera del campus.
 
-4. **Reporte Comunitario de Incidencias + Respaldo Offline**
-   - Modal accesible (`<dialog>` nativo) para listar incidencias activas, marcarlas como resueltas (`PATCH /api/v1/incidents/{id}`) o reportar nuevos bloqueos en nodos o tramos (`POST /api/v1/incidents`), recalculando mapa y rutas al instante.
-   - **Motor de respaldo offline en navegador (`frontend/src/api/fallback.ts`)** y almacén local en memoria en backend (`backend/app/db/local_store.py`), garantizando funcionamiento interactivo completo incluso si la API remota o Supabase no están disponibles.
+4. **Actualización en Vivo de Caminos Disponibles al Reportar Incidencias + Respaldo Offline**
+   - Modal accesible (`<dialog>` nativo) con auto-activación de sesión demo (sin fricción de login) para listar, reportar o resolver incidencias tanto en **nodos** (ascensores, aulas) como en **tramos pavimentados**.
+   - **Recálculo instantáneo y visibilidad de disponibilidad**: al crear o resolver una incidencia, la app recalcula de inmediato la ruta óptima y el mapa 3D, marca con franjas rojas **`⛔ CERRADO`** todo tramo bloqueado o conectado a un nodo bloqueado, muestra un aviso del desvío aplicado (también narrado por voz si `Auto-voz` está activo) y actualiza el contador en vivo **`🛣️ Caminos disponibles: X / 30`**.
+   - **Motor de respaldo offline en navegador (`frontend/src/api/fallback.ts`)** sincronizado con `client.ts` y almacén local en memoria en backend (`backend/app/db/local_store.py`), garantizando continuidad ante caídas de red o sin Supabase.
+
+5. **Modo Oscuro Global (`🌙 Modo Oscuro`) y Diseño CSS 3D Táctil**
+   - Selector global **`🌙 Modo Oscuro` / `☀️ Modo Claro`** persistido en `localStorage`, que adapta tanto los paneles y modales como el motor 3D del mapa (losa nocturna `#0F172A`, calzadas oscuras, cuadrícula cian y edificios con ventanas iluminadas en `#FDE047`).
+   - Superficies biseladas 3D (`.app-stage-bg`, `.panel-3d`, `.card-3d`, `.btn-3d`, `.pill-3d`) con luces especulares, sombras en capas y respeto automático a `prefers-reduced-motion`.
 
 ---
 
@@ -67,7 +83,8 @@ CampusRoute integra un grafo espacial multicapa del campus con ruteo inteligente
 - **React 19** + **TypeScript** + **Vite 8**
 - **Tailwind CSS v4** (`@tailwindcss/vite`)
 - **TanStack React Query v5** (`@tanstack/react-query`) para caché, sincronización e invalidación automática de mapa, incidencias y rutas
-- **Motor SVG 3D isométrico propio** e iconografía SVG inline accesible (sin dependencias pesadas de mapas ni WebGL)
+- **Motor SVG 3D isométrico propio** con polígonos extruidos no rectangulares, techos 3D translúcidos y soporte Dual Theme (Claro / Oscuro) sin dependencias pesadas ni WebGL
+- **Web Speech API** (`window.speechSynthesis` en `es-CL` / `es-ES`) para narración de ruta completa y por paso
 - **Web Geolocation API** (`navigator.geolocation.watchPosition`)
 
 ### Backend
@@ -149,7 +166,18 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-> **Nota:** Si no ingresas credenciales reales de Supabase en `backend/.env`, el backend arranca automáticamente usando el almacén local en memoria (`local_store.py`) con el grafo completo de UTFSM Casa Central y soporte para el token de demostración.
+Verifica `backend/.env` (variables de entorno principales, clima UTFSM y escaleras entre pisos/desniveles):
+
+```env
+CAMPUS_LAT=-33.0344
+CAMPUS_LON=-71.5950
+ENABLE_FLOOR_STAIRS=true
+ENABLE_ELEVATION_STAIRS=true
+STAIR_STEP_PENALTY_SECONDS=0.7
+ELEVATION_SLOPE_PENALTY_FACTOR=1.5
+```
+
+> **Nota:** Si no ingresas credenciales reales de Supabase en `backend/.env`, el backend arranca automáticamente usando el almacén local en memoria (`local_store.py`) con el grafo completo de UTFSM Casa Central (20 nodos, 30 tramos) y soporte para el token de demostración.
 
 Levantar el servidor FastAPI en desarrollo:
 
@@ -175,10 +203,15 @@ npm install
 cp .env.example .env
 ```
 
-Verifica que `frontend/.env` apunte al backend local:
+Verifica que `frontend/.env` apunte al backend local y defina las variables de entorno de escaleras/elevaciones:
 
 ```env
 VITE_API_URL=http://localhost:8000
+VITE_ENABLE_FLOOR_STAIRS=true
+VITE_ENABLE_ELEVATION_STAIRS=true
+VITE_DEFAULT_AVOID_STAIRS=false
+
+# Supabase Auth (solo login / reporte de incidencias)
 VITE_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 VITE_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
 ```
@@ -213,3 +246,12 @@ Y configura `VITE_API_URL=http://localhost:4010` en `frontend/.env`.
 2. Abre el **SQL Editor** en tu proyecto y ejecuta primero `backend/db/schema.sql` (crea las tablas `profiles`, `buildings`, `nodes`, `edges`, `incidents` y sus políticas RLS).
 3. Luego ejecuta `backend/db/seed.sql` para cargar los edificios, nodos, aristas y la incidencia inicial del campus.
 4. Copia `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` y `SUPABASE_JWT_SECRET` en `backend/.env`, y `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` en `frontend/.env`.
+
+---
+
+## Registro de Cambios Recientes
+
+- **Variantes arquitectónicas 3D + Red Vial Pavimentada (UTFSM Casa Central)**: formas 3D en `U` con Torre Gótica (`bld-a`), claustro con patio hundido (`bld-b`), `L` (`bld-c`), `T` escalonado (`bld-m`), doble nave en `H` con diente de sierra (`bld-f`) y octágono achaflanado (`bld-p`); 4 plazas/cruces pavimentados intermedios (`cc-explanada-espana`, `cc-patio-central`, `cc-paseo-poniente`, `cc-terraza-placeres`) y 10 tramos de calzada pavimentada (`cc-e21..cc-e30`).
+- **Actualización en vivo de caminos por incidencias + Modo Oscuro**: recálculo instantáneo al reportar o resolver bloqueos, marcado visual `⛔ CERRADO` y contador `🛣️ Caminos disponibles: X / 30` en tiempo real, más selector global `🌙 Modo Oscuro` / `☀️ Modo Claro` con edificios nocturnos iluminados.
+- **Voz paso a paso, Techos 3D, Piso 2 seleccionable y 2 Salidas**: narración en español (`Web Speech API`), techos a cuatro aguas con tragaluz translúcido (`🏠 Techos 3D`), sombra proyectada 3D en todos los caminos, 4 destinos seleccionables en Piso 2 con escaleras interiores 3D (`cc-e16`, `cc-e17`), 2 nuevas Salidas (`cc-salida-placeres`, `cc-salida-oriente`), variables de entorno para escaleras/elevaciones y diseño CSS 3D biselado.
+- **Espaciado amplio `1600×1050` y Estrella Polar 3D**: separación horizontal y vertical (`ISO_FLOOR_STEP = 340`) entre edificios y niveles, rosa de los vientos náutica con Norte geométrico y referencias cardinales en los cuatro bordes del campus.
