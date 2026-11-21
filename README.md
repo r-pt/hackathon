@@ -1,4 +1,4 @@
-# CampusRoute — Navegación Universitaria Accesible 3D & GPS en Tiempo Real (UTFSM Casa Central)
+# RutaCampus — Navegación Universitaria Accesible 3D & GPS en Tiempo Real (UTFSM Casa Central)
 
 Aplicación web de navegación accesible dentro de **UTFSM Casa Central (Valparaíso)** que calcula rutas óptimas paso a paso considerando **movilidad reducida**, **incidencias activas en tiempo real** (ascensores, rampas, escaleras o pasillos bloqueados), **condiciones climáticas** (lluvia y rutas techadas) y **seguimiento GPS en vivo** sobre un **mapa interactivo 3D isométrico y cenital**.
 
