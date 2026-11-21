@@ -21,8 +21,8 @@ interface CampusMap3DProps {
   gpsActive?: boolean
 }
 
-const ISO_FLOOR_STEP = 165
-const BLDG_EXTRUDE = 28
+const ISO_FLOOR_STEP = 340
+const BLDG_EXTRUDE = 34
 
 const EDGE_STYLE: Record<
   EdgeType,
@@ -139,6 +139,86 @@ function DestinationFlagAsset({ shadowFilterUrl }: { shadowFilterUrl: string }) 
         <path d="M3,-34 L17,-29.5 L3,-25 Z" fill="#10B981" fillOpacity={0.85} />
       </g>
     </g>
+  )
+}
+
+function CompassRose({
+  angleDeg,
+  rotation,
+  onReset,
+}: {
+  angleDeg: number
+  rotation: number
+  onReset: () => void
+}) {
+  const cardinals: { label: string; x: number; y: number; isNorth?: boolean }[] = [
+    { label: 'N', x: 0, y: -33, isNorth: true },
+    { label: 'E', x: 33, y: 0 },
+    { label: 'S', x: 0, y: 33 },
+    { label: 'O', x: -33, y: 0 },
+  ]
+
+  return (
+    <button
+      type="button"
+      onClick={onReset}
+      title="Restablecer orientación al norte (0°)"
+      aria-label={`Estrella polar y rosa de los vientos, orientación actual ${rotation} grados. Pulsa para restablecer a 0 grados.`}
+      className="absolute top-3 right-3 z-10 flex flex-col items-center gap-0.5 rounded-2xl border border-slate-200/90 bg-white/90 p-1.5 shadow-md backdrop-blur-md transition-transform duration-150 hover:scale-105 active:scale-95 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626]"
+    >
+      <svg width="72" height="72" viewBox="-44 -44 88 88" aria-hidden="true">
+        {/* Outer dial ring */}
+        <circle r={40} fill="#F8FAFC" stroke="#CBD5E1" strokeWidth={1.5} />
+        <circle r={24} fill="none" stroke="#E2E8F0" strokeWidth={1} strokeDasharray="3 3" />
+
+        {/* Rotating 8-point Polar Star */}
+        <g transform={`rotate(${angleDeg})`}>
+          {/* Minor diagonal points (NE, SE, SO, NO) */}
+          <polygon points="0,0 14,-14 4,0" fill="#94A3B8" />
+          <polygon points="0,0 14,-14 0,-4" fill="#CBD5E1" />
+          <polygon points="0,0 14,14 0,4" fill="#94A3B8" />
+          <polygon points="0,0 14,14 4,0" fill="#CBD5E1" />
+          <polygon points="0,0 -14,14 -4,0" fill="#94A3B8" />
+          <polygon points="0,0 -14,14 0,4" fill="#CBD5E1" />
+          <polygon points="0,0 -14,-14 0,-4" fill="#94A3B8" />
+          <polygon points="0,0 -14,-14 -4,0" fill="#CBD5E1" />
+
+          {/* Main cardinal points (E, S, O) */}
+          <polygon points="0,0 24,0 0,5" fill="#475569" />
+          <polygon points="0,0 24,0 0,-5" fill="#94A3B8" />
+          <polygon points="0,0 0,24 -5,0" fill="#334155" />
+          <polygon points="0,0 0,24 5,0" fill="#64748B" />
+          <polygon points="0,0 -24,0 0,-5" fill="#475569" />
+          <polygon points="0,0 -24,0 0,5" fill="#94A3B8" />
+
+          {/* Polar Star North Needle (#DC2626) */}
+          <polygon points="0,0 0,-26 5.5,0" fill="#DC2626" />
+          <polygon points="0,0 0,-26 -5.5,0" fill="#991B1B" />
+
+          {/* Center jewel */}
+          <circle r={3.2} fill="#FFFFFF" stroke="#0F172A" strokeWidth={1.3} />
+
+          {/* Upright Cardinal Letters */}
+          {cardinals.map((c) => (
+            <g key={c.label} transform={`translate(${c.x}, ${c.y}) rotate(${-angleDeg})`}>
+              <text
+                textAnchor="middle"
+                dy="3.8"
+                fontFamily="'Space Grotesk', system-ui, sans-serif"
+                fontSize={c.isNorth ? '11.5' : '10'}
+                fontWeight="800"
+                fill={c.isNorth ? '#DC2626' : '#0F172A'}
+              >
+                {c.label}
+              </text>
+            </g>
+          ))}
+        </g>
+      </svg>
+      <span className="font-display text-[10px] font-bold leading-none text-slate-600">
+        {rotation === 0 ? 'Norte' : `${rotation}° (Reiniciar)`}
+      </span>
+    </button>
   )
 }
 
@@ -273,10 +353,10 @@ export function CampusMap3D({
         if (!nb || nb === 'exterior' || nb.includes('-')) continue
         if (bl.includes(nb) || nb.includes(bl)) {
           const p = spacedCoords.get(n.id) ?? { x: n.x, y: n.y }
-          minX = Math.min(minX, p.x - 28)
-          maxX = Math.max(maxX, p.x + 28)
-          minY = Math.min(minY, p.y - 28)
-          maxY = Math.max(maxY, p.y + 28)
+          minX = Math.min(minX, p.x - 18)
+          maxX = Math.max(maxX, p.x + 18)
+          minY = Math.min(minY, p.y - 18)
+          maxY = Math.max(maxY, p.y + 18)
         }
       }
       return {
@@ -300,9 +380,9 @@ export function CampusMap3D({
       allWorldY.push(p.y)
     }
     const worldMinX = allWorldX.length ? Math.min(...allWorldX) : 0
-    const worldMaxX = allWorldX.length ? Math.max(...allWorldX) : map.viewbox?.width || 1000
+    const worldMaxX = allWorldX.length ? Math.max(...allWorldX) : map.viewbox?.width || 1600
     const worldMinY = allWorldY.length ? Math.min(...allWorldY) : 0
-    const worldMaxY = allWorldY.length ? Math.max(...allWorldY) : map.viewbox?.height || 640
+    const worldMaxY = allWorldY.length ? Math.max(...allWorldY) : map.viewbox?.height || 1050
     const centerX = (worldMinX + worldMaxX) / 2
     const centerY = (worldMinY + worldMaxY) / 2
 
@@ -326,13 +406,13 @@ export function CampusMap3D({
       rotWorldXs.push(rp.x)
       rotWorldYs.push(rp.y)
     }
-    const rotMinX = (rotWorldXs.length ? Math.min(...rotWorldXs) : 0) - 36
-    const rotMaxX = (rotWorldXs.length ? Math.max(...rotWorldXs) : 1000) + 36
-    const rotMinY = (rotWorldYs.length ? Math.min(...rotWorldYs) : 0) - 36
-    const rotMaxY = (rotWorldYs.length ? Math.max(...rotWorldYs) : 640) + 36
-    const deckW = Math.max(420, rotMaxX - rotMinX)
-    const deckH = Math.max(320, rotMaxY - rotMinY)
-    const deckGap = 86
+    const rotMinX = (rotWorldXs.length ? Math.min(...rotWorldXs) : 0) - 44
+    const rotMaxX = (rotWorldXs.length ? Math.max(...rotWorldXs) : map.viewbox?.width || 1600) + 44
+    const rotMinY = (rotWorldYs.length ? Math.min(...rotWorldYs) : 0) - 44
+    const rotMaxY = (rotWorldYs.length ? Math.max(...rotWorldYs) : map.viewbox?.height || 1050) + 44
+    const deckW = Math.max(480, rotMaxX - rotMinX)
+    const deckH = Math.max(360, rotMaxY - rotMinY)
+    const deckGap = 96
 
     const floorIndexMap = new Map<number, number>()
     renderedFloors.forEach((fl, idx) => floorIndexMap.set(fl, idx))
@@ -351,6 +431,11 @@ export function CampusMap3D({
         y: rp.y - rotMinY,
       }
     }
+
+    const fl0 = renderedFloors[0] ?? 1
+    const pOrigin = rawProject(centerX, centerY, fl0, 0)
+    const pNorth = rawProject(centerX, centerY - 120, fl0, 0)
+    const northAngleDeg = (Math.atan2(pNorth.y - pOrigin.y, pNorth.x - pOrigin.x) * 180) / Math.PI + 90
 
     const samples: { x: number; y: number }[] = []
     for (const fl of renderedFloors) {
@@ -372,6 +457,10 @@ export function CampusMap3D({
           [worldMaxX + 30, worldMinY - 30],
           [worldMaxX + 30, worldMaxY + 30],
           [worldMinX - 30, worldMaxY + 30],
+          [(worldMinX + worldMaxX) / 2, worldMinY - 22],
+          [(worldMinX + worldMaxX) / 2, worldMaxY + 22],
+          [worldMinX - 22, (worldMinY + worldMaxY) / 2],
+          [worldMaxX + 22, (worldMinY + worldMaxY) / 2],
         ] as [number, number][]) {
           samples.push(rawProject(tx, ty, fl, -BLDG_EXTRUDE - 12))
         }
@@ -450,6 +539,7 @@ export function CampusMap3D({
       deckGap,
       offsetX,
       offsetY,
+      northAngleDeg,
       width: Math.max(460, Math.ceil(maxX - minX)),
       height: Math.max(360, Math.ceil(maxY - minY)),
     }
@@ -475,6 +565,7 @@ export function CampusMap3D({
     deckGap,
     offsetX,
     offsetY,
+    northAngleDeg,
   } = scene
 
   const activeIncidents = useMemo(
@@ -715,6 +806,49 @@ export function CampusMap3D({
         <rect x={rx} y={ry} width={rw} height={rh} rx={14} fill="#FFFFFF" stroke={b.color} strokeWidth={2.2} />
         <rect x={rx} y={ry} width={rw} height={rh} rx={14} fill={b.color} fillOpacity={0.14} />
         {renderBuildingPlaque(rx + rw / 2, ry - 10, b.name, b.color, false)}
+      </g>
+    )
+  }
+
+  const renderCardinalEdgeLabels = (fl: number) => {
+    const midX = (worldMinX + worldMaxX) / 2
+    const midY = (worldMinY + worldMaxY) / 2
+    const edges: { key: string; wx: number; wy: number; text: string; isNorth?: boolean }[] = [
+      { key: 'N', wx: midX, wy: worldMinY - 22, text: 'N · Av. Placeres', isNorth: true },
+      { key: 'S', wx: midX, wy: worldMaxY + 22, text: 'S · Av. España' },
+      { key: 'O', wx: worldMinX - 22, wy: midY, text: 'O · Informática' },
+      { key: 'E', wx: worldMaxX + 22, wy: midY, text: 'E · Jardines / Ed. F' },
+    ]
+    return (
+      <g aria-hidden="true" pointerEvents="none">
+        {edges.map((item) => {
+          const p = project(item.wx, item.wy, fl, -BLDG_EXTRUDE)
+          const pillW = Math.max(96, item.text.length * 6.2 + 18)
+          return (
+            <g key={`cardinal-${item.key}`} transform={`translate(${p.x}, ${p.y})`}>
+              <rect
+                x={-pillW / 2}
+                y={-10}
+                width={pillW}
+                height={20}
+                rx={10}
+                fill="rgba(255,255,255,0.92)"
+                stroke={item.isNorth ? '#DC2626' : '#94A3B8'}
+                strokeWidth={item.isNorth ? 1.5 : 1.1}
+              />
+              <text
+                y={3.5}
+                textAnchor="middle"
+                fontFamily="'Space Grotesk', system-ui, sans-serif"
+                fontSize="10"
+                fontWeight="700"
+                fill={item.isNorth ? '#B91C1C' : '#334155'}
+              >
+                {item.text}
+              </text>
+            </g>
+          )
+        })}
       </g>
     )
   }
@@ -1093,6 +1227,7 @@ export function CampusMap3D({
 
       {/* Isometric 3D / Cenital Interactive SVG Stage */}
       <div className="relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl border border-slate-200/80 bg-gradient-to-b from-slate-100 to-slate-200/60 p-2">
+        <CompassRose angleDeg={northAngleDeg} rotation={rotation} onReset={() => setRotation(0)} />
         <svg
           viewBox={`0 0 ${scene.width} ${scene.height}`}
           className={`h-auto max-h-[680px] w-full select-none${showLabels ? '' : ' cm3d-hide-labels'}`}
@@ -1121,6 +1256,7 @@ export function CampusMap3D({
             return (
               <g key={`floor-layer-${fl}`}>
                 {renderFloorBaseSlab(fl, idx)}
+                {fl === renderedFloors[0] && renderCardinalEdgeLabels(fl)}
 
                 {idx > 0 &&
                   crossFloorEdges

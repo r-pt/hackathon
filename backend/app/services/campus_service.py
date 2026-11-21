@@ -18,7 +18,7 @@ from app.schemas.campus import (
 from app.schemas.incidents import Incident
 
 CAMPUS_NAME = "UTFSM Casa Central — Campus Simulado"
-DEFAULT_VIEWBOX = ViewBox(width=1000, height=640)
+DEFAULT_VIEWBOX = ViewBox(width=1600, height=1050)
 DEFAULT_FLOORS = [1, 2]
 
 

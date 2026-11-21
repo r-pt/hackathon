@@ -214,11 +214,11 @@ export function App() {
         const nodes = mapQuery.data?.nodes ?? []
         if (nodes.length === 0) return
 
-        // Map real meters relative to UTFSM center onto campus (x, y) coordinates (~1m ≈ 1.1 SVG units)
+        // Map real meters relative to UTFSM center onto wide 1600x1050 campus (x, y) coordinates (~1m ≈ 2.0 SVG units)
         const centerX = nodes.reduce((acc, n) => acc + n.x, 0) / nodes.length
         const centerY = nodes.reduce((acc, n) => acc + n.y, 0) / nodes.length
-        const targetX = centerX + dEastM * 1.1
-        const targetY = centerY - dNorthM * 1.1
+        const targetX = centerX + dEastM * 2.0
+        const targetY = centerY - dNorthM * 2.0
 
         const floorMatches =
           typeof floorView === 'number' ? nodes.filter((n) => n.floor === floorView) : []
