@@ -49,6 +49,16 @@ function getLocationOptionIcon(item: LocationItem): string {
   return NODE_TYPE_ICON[item.node_type] ?? '📍'
 }
 
+function formatLocationOptionLabel(item: LocationItem): string {
+  let cleanName = item.name.replace(/\s*\(Piso\s*\d+\)\s*$/i, '').trim()
+  const b = (item.building ?? '').trim()
+  if (b.startsWith('Edificio ')) {
+    const escapedBuilding = b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    cleanName = cleanName.replace(new RegExp(`^${escapedBuilding}\\s*[—–-]\\s*`, 'i'), '').trim()
+  }
+  return `${cleanName} (Piso ${item.floor})`
+}
+
 function getBuildingSortRank(building: string): number {
   const b = building.trim()
   if (b.startsWith('Edificio ')) return 0
@@ -178,7 +188,7 @@ function LocationSelect({
               const icon = getLocationOptionIcon(l)
               return (
                 <option key={l.id} value={l.id}>
-                  {icon} {l.name} (Piso {l.floor})
+                  {icon} {formatLocationOptionLabel(l)}
                 </option>
               )
             })}

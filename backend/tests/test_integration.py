@@ -134,16 +134,23 @@ def test_campus_locations_search_and_floor_filter() -> None:
     }
     assert all(item["floor"] == 1 for item in items)
 
-    # Accent-insensitive search (informatica matches Edificio M and Paseo Poniente landmark)
+    # Accent-insensitive search (informatica -> Edificio F DI; mecanica -> Edificio M + Paseo Poniente)
     accent_resp = client.get(
         "/api/v1/campus/locations",
         params={"search": "informatica"},
     )
     assert accent_resp.status_code == 200
-    assert [item["id"] for item in accent_resp.json()["items"]] == [
+    assert [item["id"] for item in accent_resp.json()["items"]] == ["cc-edificio-f"]
+
+    mecanica_resp = client.get(
+        "/api/v1/campus/locations",
+        params={"search": "mecanica"},
+    )
+    assert mecanica_resp.status_code == 200
+    assert {item["id"] for item in mecanica_resp.json()["items"]} == {
         "cc-edificio-m",
         "cc-paseo-poniente",
-    ]
+    }
 
 
 def test_auth_me_and_preferences_persistence_in_local_demo_mode() -> None:
@@ -461,7 +468,7 @@ def test_casa_central_step1_ramp_and_same_floor_stairs_instructions() -> None:
     assert stairs_resp.status_code == 200
     step1_stairs = stairs_resp.json()["steps"][0]["instruction"]
     assert step1_stairs.startswith("Sube")
-    assert "hasta Edificio A — Hall Central (Piso 1)." in step1_stairs
+    assert "hasta Hall Central y Aula Magna." in step1_stairs
 
 
 def test_local_store_caps_incidents_and_evicts_resolved_first() -> None:

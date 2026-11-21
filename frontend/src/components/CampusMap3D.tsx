@@ -155,7 +155,7 @@ function getBuildingShape(b: CampusBuilding): BuildingShapeSpec {
   }
 
   if (bid === 'bld-m') {
-    // T-shaped stepped modern pavilion (Informática)
+    // T-shaped stepped pavilion (Edificio M — Mecánica y Talleres)
     return {
       outer: [
         [x, y],
@@ -172,7 +172,7 @@ function getBuildingShape(b: CampusBuilding): BuildingShapeSpec {
   }
 
   if (bid === 'bld-f') {
-    // H-shaped twin-nave industrial workshop with sawtooth roof
+    // H-shaped twin-nave pavilion with sawtooth skylights (Edificio F — Informática DI)
     return {
       outer: [
         [x, y],
@@ -420,9 +420,20 @@ export function CampusMap3D({
     moved: boolean
   } | null>(null)
   const suppressClickRef = useRef<boolean>(false)
+  const suppressTimerRef = useRef<number | null>(null)
   const activePointersRef = useRef<Map<number, { x: number; y: number }>>(new Map())
   const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(null)
+  const zoomRef = useRef<number>(1)
   const sceneSizeRef = useRef<{ w: number; h: number }>({ w: 2200, h: 1450 })
+
+  useEffect(() => {
+    return () => {
+      if (suppressTimerRef.current !== null) {
+        window.clearTimeout(suppressTimerRef.current)
+        suppressTimerRef.current = null
+      }
+    }
+  }, [])
 
   useEffect(() => {
     setInternalFloor(floorView)
@@ -700,6 +711,12 @@ export function CampusMap3D({
       return project(p.x, p.y, n.floor, 0)
     }
 
+    const pointInBuilding = (px: number, py: number, b: CampusBuilding, pad = 0) =>
+      px >= b.x - pad &&
+      px <= b.x + b.width + pad &&
+      py >= b.y - pad &&
+      py <= b.y + b.height + pad
+
     const segmentHitsBuildingInterior = (
       ax: number,
       ay: number,
@@ -707,7 +724,9 @@ export function CampusMap3D({
       by: number,
       fl: number,
       startPt: { x: number; y: number },
-      endPt: { x: number; y: number }
+      endPt: { x: number; y: number },
+      isStartSeg = true,
+      isEndSeg = true
     ) => {
       const segMinX = Math.min(ax, bx)
       const segMaxX = Math.max(ax, bx)
@@ -715,26 +734,103 @@ export function CampusMap3D({
       const segMaxY = Math.max(ay, by)
       for (const b of buildings) {
         if (fl > Math.max(1, b.floors)) continue
-        const startInB =
-          startPt.x >= b.x - 10 &&
-          startPt.x <= b.x + b.width + 10 &&
-          startPt.y >= b.y - 10 &&
-          startPt.y <= b.y + b.height + 10
-        const endInB =
-          endPt.x >= b.x - 10 &&
-          endPt.x <= b.x + b.width + 10 &&
-          endPt.y >= b.y - 10 &&
-          endPt.y <= b.y + b.height + 10
-        if (startInB || endInB) continue
-        const rx0 = b.x + 14
-        const rx1 = b.x + b.width - 14
-        const ry0 = b.y + 14
-        const ry1 = b.y + b.height - 14
+        const startInB = pointInBuilding(startPt.x, startPt.y, b, 10)
+        const endInB = pointInBuilding(endPt.x, endPt.y, b, 10)
+        // Allow interior paths when both endpoints belong to the same building
+        if (startInB && endInB) continue
+        // Only the segment entering/leaving an endpoint's building may cross that building
+        if (startInB && isStartSeg) continue
+        if (endInB && isEndSeg) continue
+        const rx0 = b.x + 2
+        const rx1 = b.x + b.width - 2
+        const ry0 = b.y + 2
+        const ry1 = b.y + b.height - 2
         if (segMaxX >= rx0 && segMinX <= rx1 && segMaxY >= ry0 && segMinY <= ry1) {
           return true
         }
       }
       return false
+    }
+
+    const intermediateCornerHitsBuilding = (
+      pt: { x: number; y: number },
+      fl: number,
+      startPt: { x: number; y: number },
+      endPt: { x: number; y: number }
+    ) => {
+      for (const b of buildings) {
+        if (fl > Math.max(1, b.floors)) continue
+        const startInB = pointInBuilding(startPt.x, startPt.y, b, 10)
+        const endInB = pointInBuilding(endPt.x, endPt.y, b, 10)
+        if (startInB && endInB) continue
+        if (pointInBuilding(pt.x, pt.y, b, 2)) {
+          return true
+        }
+      }
+      return false
+    }
+
+    const isCandidateValid = (
+      cand: { x: number; y: number }[],
+      fl: number,
+      p1: { x: number; y: number },
+      p2: { x: number; y: number }
+    ) => {
+      for (let i = 1; i < cand.length - 1; i++) {
+        if (intermediateCornerHitsBuilding(cand[i], fl, p1, p2)) {
+          return false
+        }
+      }
+      for (let i = 0; i < cand.length - 1; i++) {
+        if (
+          segmentHitsBuildingInterior(
+            cand[i].x,
+            cand[i].y,
+            cand[i + 1].x,
+            cand[i + 1].y,
+            fl,
+            p1,
+            p2,
+            i === 0,
+            i === cand.length - 2
+          )
+        ) {
+          return false
+        }
+      }
+      return true
+    }
+
+    const floorNodesByFloor = new Map<number, { node: CampusNode; pt: { x: number; y: number } }[]>()
+    for (const n of map.nodes) {
+      const list = floorNodesByFloor.get(n.floor) ?? []
+      list.push({ node: n, pt: spacedCoords.get(n.id) ?? { x: n.x, y: n.y } })
+      floorNodesByFloor.set(n.floor, list)
+    }
+
+    const countNonPlazaNodeHits = (
+      cand: { x: number; y: number }[],
+      n1: CampusNode,
+      n2: CampusNode
+    ) => {
+      const peers = floorNodesByFloor.get(n1.floor) ?? []
+      let hits = 0
+      for (const { node: other, pt } of peers) {
+        if (other.id === n1.id || other.id === n2.id || isPavedPlazaNode(other)) continue
+        for (let i = 0; i < cand.length - 1; i++) {
+          const a = cand[i]
+          const b = cand[i + 1]
+          const minX = Math.min(a.x, b.x) - 14
+          const maxX = Math.max(a.x, b.x) + 14
+          const minY = Math.min(a.y, b.y) - 14
+          const maxY = Math.max(a.y, b.y) + 14
+          if (pt.x >= minX && pt.x <= maxX && pt.y >= minY && pt.y <= maxY) {
+            hits++
+            break
+          }
+        }
+      }
+      return hits
     }
 
     const computeOrthogonalWorldWaypoints = (
@@ -749,6 +845,33 @@ export function CampusMap3D({
       const x2 = p2.x
       const y2 = p2.y
       if (Math.abs(x1 - x2) <= 10 || Math.abs(y1 - y2) <= 10) {
+        if (!segmentHitsBuildingInterior(x1, y1, x2, y2, n1.floor, p1, p2, true, true)) {
+          return [p1, p2]
+        }
+        const blocking = buildings.find(
+          (b) =>
+            n1.floor <= Math.max(1, b.floors) &&
+            !pointInBuilding(p1.x, p1.y, b, 10) &&
+            !pointInBuilding(p2.x, p2.y, b, 10) &&
+            Math.max(x1, x2) >= b.x + 2 &&
+            Math.min(x1, x2) <= b.x + b.width - 2 &&
+            Math.max(y1, y2) >= b.y + 2 &&
+            Math.min(y1, y2) <= b.y + b.height - 2
+        )
+        if (blocking) {
+          const isVert = Math.abs(x1 - x2) <= 10
+          const detours: { x: number; y: number }[][] = isVert
+            ? [
+                [p1, { x: blocking.x - 42, y: y1 }, { x: blocking.x - 42, y: y2 }, p2],
+                [p1, { x: blocking.x + blocking.width + 42, y: y1 }, { x: blocking.x + blocking.width + 42, y: y2 }, p2],
+              ]
+            : [
+                [p1, { x: x1, y: blocking.y - 42 }, { x: x2, y: blocking.y - 42 }, p2],
+                [p1, { x: x1, y: blocking.y + blocking.height + 42 }, { x: x2, y: blocking.y + blocking.height + 42 }, p2],
+              ]
+          const clearDetour = detours.find((d) => isCandidateValid(d, n1.floor, p1, p2))
+          if (clearDetour) return clearDetour
+        }
         return [p1, p2]
       }
       const midY = Math.round((y1 + y2) / 2)
@@ -759,35 +882,49 @@ export function CampusMap3D({
         [p1, { x: x1, y: midY }, { x: x2, y: midY }, p2],
         [p1, { x: midX, y: y1 }, { x: midX, y: y2 }, p2],
       ]
-      const isAvenuePt = (pt: { x: number; y: number }) =>
-        Math.abs(pt.x - 1080) <= 18 ||
-        Math.abs(pt.y - 645) <= 18 ||
-        Math.abs(pt.y - 760) <= 18 ||
-        Math.abs(pt.y - 1135) <= 18 ||
-        Math.abs(pt.y - 280) <= 18
-
-      const validCandidates = candidates.filter((cand) => {
-        for (let i = 0; i < cand.length - 1; i++) {
-          if (
-            segmentHitsBuildingInterior(
-              cand[i].x,
-              cand[i].y,
-              cand[i + 1].x,
-              cand[i + 1].y,
-              n1.floor,
-              p1,
-              p2
-            )
-          ) {
-            return false
-          }
+      const avenueScore = (pt: { x: number; y: number }) => {
+        let score = 0
+        if (Math.abs(pt.x - 880) <= 18 || Math.abs(pt.x - 1080) <= 18) score += 1
+        if (
+          Math.abs(pt.y - 225) <= 18 ||
+          Math.abs(pt.y - 645) <= 18 ||
+          Math.abs(pt.y - 835) <= 18 ||
+          Math.abs(pt.y - 1015) <= 18 ||
+          Math.abs(pt.y - 1185) <= 18
+        ) {
+          score += 1
         }
-        return true
-      })
+        return score
+      }
+      const isAvenuePt = (pt: { x: number; y: number }) => avenueScore(pt) > 0
 
+      const validCandidates = candidates.filter((cand) => isCandidateValid(cand, n1.floor, p1, p2))
       const pool = validCandidates.length > 0 ? validCandidates : candidates
-      const avenueMatch = pool.find((cand) => cand.slice(1, -1).some(isAvenuePt))
-      return avenueMatch ?? pool[0]
+
+      let best = pool[0]
+      let bestHits = countNonPlazaNodeHits(best, n1, n2)
+      let bestAv = Math.max(0, ...best.slice(1, -1).map(avenueScore))
+      let bestHasAv = best.slice(1, -1).some(isAvenuePt) ? 1 : 0
+
+      for (let i = 1; i < pool.length; i++) {
+        const cand = pool[i]
+        const hits = countNonPlazaNodeHits(cand, n1, n2)
+        const av = Math.max(0, ...cand.slice(1, -1).map(avenueScore))
+        const hasAv = cand.slice(1, -1).some(isAvenuePt) ? 1 : 0
+        if (
+          hits < bestHits ||
+          (hits === bestHits &&
+            (av > bestAv ||
+              (av === bestAv &&
+                (hasAv > bestHasAv || (hasAv === bestHasAv && cand.length < best.length)))))
+        ) {
+          best = cand
+          bestHits = hits
+          bestAv = av
+          bestHasAv = hasAv
+        }
+      }
+      return best
     }
 
     const edgeWaypointsCache = new Map<string, { x: number; y: number }[]>()
@@ -905,6 +1042,15 @@ export function CampusMap3D({
   } = scene
 
   sceneSizeRef.current = { w: scene.width, h: scene.height }
+  zoomRef.current = zoom
+
+  useEffect(() => {
+    setPan({ x: 0, y: 0 })
+    dragRef.current = null
+    pinchRef.current = null
+    activePointersRef.current.clear()
+    setIsDragging(false)
+  }, [viewMode, rotation, activeFloorView])
 
   const viewW = scene.width / zoom
   const viewH = scene.height / zoom
@@ -914,6 +1060,7 @@ export function CampusMap3D({
 
   const applyZoom = useCallback((nextZoom: number) => {
     const clamped = Math.round(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, nextZoom)) * 100) / 100
+    zoomRef.current = clamped
     setZoom(clamped)
     if (clamped <= 0.75) {
       setPan({ x: 0, y: 0 })
@@ -924,6 +1071,7 @@ export function CampusMap3D({
   }, [])
 
   const resetZoomPan = useCallback(() => {
+    zoomRef.current = 1
     setZoom(1)
     setPan({ x: 0, y: 0 })
   }, [])
@@ -934,31 +1082,27 @@ export function CampusMap3D({
     const handleWheel = (ev: WheelEvent) => {
       ev.preventDefault()
       const delta = ev.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP
-      setZoom((prev) => {
-        const next = Math.round(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, prev + delta)) * 100) / 100
-        if (next <= 0.75) {
-          setPan({ x: 0, y: 0 })
-        } else {
-          const { w, h } = sceneSizeRef.current
-          setPan((p) => clampPan(p, next, w, h))
-        }
-        return next
-      })
+      applyZoom(zoomRef.current + delta)
     }
     el.addEventListener('wheel', handleWheel, { passive: false })
     return () => el.removeEventListener('wheel', handleWheel)
-  }, [])
+  }, [applyZoom])
 
   const handleStagePointerDown = (ev: React.PointerEvent<HTMLDivElement>) => {
     if ((ev.target as Element | null)?.closest('button')) return
     if (ev.pointerType === 'mouse' && ev.button !== 0) return
 
+    suppressClickRef.current = false
+    if (ev.pointerType === 'mouse') {
+      activePointersRef.current.clear()
+      pinchRef.current = null
+    }
     activePointersRef.current.set(ev.pointerId, { x: ev.clientX, y: ev.clientY })
 
     if (activePointersRef.current.size === 2) {
       const pts = Array.from(activePointersRef.current.values())
       const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y)
-      pinchRef.current = { startDist: Math.max(10, dist), startZoom: zoom }
+      pinchRef.current = { startDist: Math.max(10, dist), startZoom: zoomRef.current }
       dragRef.current = null
       setIsDragging(false)
       return
@@ -977,6 +1121,16 @@ export function CampusMap3D({
   }
 
   const handleStagePointerMove = (ev: React.PointerEvent<HTMLDivElement>) => {
+    if (ev.pointerType === 'mouse' && (ev.buttons & 1) === 0) {
+      if (dragRef.current || activePointersRef.current.size > 0) {
+        activePointersRef.current.clear()
+        pinchRef.current = null
+        dragRef.current = null
+        setIsDragging(false)
+      }
+      return
+    }
+
     if (activePointersRef.current.has(ev.pointerId)) {
       activePointersRef.current.set(ev.pointerId, { x: ev.clientX, y: ev.clientY })
     }
@@ -996,7 +1150,7 @@ export function CampusMap3D({
 
     if (!drag.moved) {
       if (Math.hypot(dxPx, dyPx) < 5) return
-      if (zoom <= 0.75) return
+      if (zoomRef.current <= 0.75) return
       drag.moved = true
       setIsDragging(true)
       try {
@@ -1013,7 +1167,7 @@ export function CampusMap3D({
     setPan(
       clampPan(
         { x: drag.startPanX - dxPx * scale, y: drag.startPanY - dyPx * scale },
-        zoom,
+        zoomRef.current,
         scene.width,
         scene.height
       )
@@ -1030,8 +1184,12 @@ export function CampusMap3D({
     if (drag && drag.pointerId === ev.pointerId) {
       if (drag.moved) {
         suppressClickRef.current = true
-        window.setTimeout(() => {
+        if (suppressTimerRef.current !== null) {
+          window.clearTimeout(suppressTimerRef.current)
+        }
+        suppressTimerRef.current = window.setTimeout(() => {
           suppressClickRef.current = false
+          suppressTimerRef.current = null
         }, 0)
         try {
           if (ev.currentTarget.hasPointerCapture(ev.pointerId)) {
@@ -1141,14 +1299,14 @@ export function CampusMap3D({
     if (route?.path_node_ids?.length) {
       let cur: string[] = []
       let prevNode: CampusNode | null = null
-      for (const id of route.path_node_ids) {
+      route.path_node_ids.forEach((id, stepIdx) => {
         const n = nodeMap.get(id)
         if (n && isNodeVisible(n)) {
           const p = projectNode(n)
           if (prevNode && prevNode.floor !== n.floor && stacked) {
             if (cur.length > 1) segments.push(cur)
             cur = [`${p.x},${p.y}`]
-            pushVertical(`rv-${prevNode.id}-${n.id}`, projectNode(prevNode), p)
+            pushVertical(`rv-${stepIdx}-${prevNode.id}-${n.id}`, projectNode(prevNode), p)
           } else if (prevNode && prevNode.floor === n.floor) {
             const pairPts = getPairProjectedWaypoints(prevNode, n)
             if (cur.length === 0) {
@@ -1166,7 +1324,7 @@ export function CampusMap3D({
           cur = []
           prevNode = null
         }
-      }
+      })
       if (cur.length > 1) segments.push(cur)
     }
 
@@ -1621,7 +1779,8 @@ export function CampusMap3D({
         {courtyardNode}
         {roofOverlay}
         {towerNode}
-        {renderBuildingPlaque(roofCenterX, roofTopY - extraPlaqueLift, b.name, b.color, true)}
+        {(!stacked || isTopFloor) &&
+          renderBuildingPlaque(roofCenterX, roofTopY - extraPlaqueLift, b.name, b.color, true)}
       </g>
     )
   }
@@ -1708,7 +1867,13 @@ export function CampusMap3D({
           </g>
         )}
 
-        {renderBuildingPlaque(rx + rw / 2, ry - 10, b.name, b.color, false)}
+        {renderBuildingPlaque(
+          rx + rw / 2,
+          ry - 10,
+          stacked && fl > 1 ? `${b.name} · Piso ${fl}` : b.name,
+          b.color,
+          false
+        )}
       </g>
     )
   }
@@ -1719,8 +1884,8 @@ export function CampusMap3D({
     const edges: { key: string; wx: number; wy: number; text: string; isNorth?: boolean }[] = [
       { key: 'N', wx: midX, wy: worldMinY - 22, text: 'N · Av. Placeres', isNorth: true },
       { key: 'S', wx: midX, wy: worldMaxY + 22, text: 'S · Av. España' },
-      { key: 'O', wx: worldMinX - 22, wy: midY, text: 'O · Informática' },
-      { key: 'E', wx: worldMaxX + 22, wy: midY, text: 'E · Jardines / Ed. F' },
+      { key: 'O', wx: worldMinX - 22, wy: midY, text: 'O · Mecánica / Cancha' },
+      { key: 'E', wx: worldMaxX + 22, wy: midY, text: 'E · Informática / Jardines' },
     ]
     return (
       <g aria-hidden="true" pointerEvents="none">
@@ -1814,10 +1979,10 @@ export function CampusMap3D({
     const parterres =
       fl === 1
         ? [
-            { x1: 260, y1: 180, x2: 760, y2: 480 },
-            { x1: 1660, y1: 360, x2: 2000, y2: 620 },
-            { x1: 220, y1: 840, x2: 560, y2: 1200 },
-            { x1: 1180, y1: 880, x2: 1360, y2: 1060 },
+            { x1: 240, y1: 180, x2: 740, y2: 460 },
+            { x1: 1480, y1: 420, x2: 1940, y2: 760 },
+            { x1: 240, y1: 860, x2: 720, y2: 1180 },
+            { x1: 1340, y1: 1100, x2: 1620, y2: 1270 },
           ]
         : []
 
@@ -2388,7 +2553,7 @@ export function CampusMap3D({
                   strokeLinejoin="round"
                   strokeLinecap="round"
                 />
-                {flights.map(([p0, p1], fi) =>
+                {flights.flatMap(([p0, p1], fi) =>
                   Array.from({ length: 6 }, (_, ti) => {
                     const t = (ti + 1) / 7
                     const sx = p0.x + (p1.x - p0.x) * t
@@ -2563,7 +2728,8 @@ export function CampusMap3D({
       isOrigin ? ', tu ubicación actual' : ''
     }${isDest ? ', destino meta B' : ''}`
 
-    const labelW = Math.max(58, n.name.length * 5.7 + 16)
+    const displayLabel = n.name.replace(/\s*\(Piso\s*\d+\)\s*$/i, '').trim() || n.name
+    const labelW = Math.max(58, displayLabel.length * 5.7 + 16)
     const labelClass = isEndpoint || onRoute || isSalida ? 'cm3d-node-label cm3d-label-pinned' : 'cm3d-node-label'
 
     return (
@@ -2674,7 +2840,7 @@ export function CampusMap3D({
               fontWeight={isEndpoint || onRoute || isSalida ? '700' : '600'}
               fill={isDark ? '#F8FAFC' : '#0F172A'}
             >
-              {n.name}
+              {displayLabel}
             </text>
           </g>
         </g>
@@ -2841,6 +3007,7 @@ export function CampusMap3D({
         onPointerMove={handleStagePointerMove}
         onPointerUp={handleStagePointerUp}
         onPointerCancel={handleStagePointerUp}
+        onLostPointerCapture={handleStagePointerUp}
         style={{ touchAction: zoom > 1 ? 'none' : 'pan-y' }}
         className={`panel-3d relative flex h-[72vh] min-h-[520px] w-full items-center justify-center overflow-hidden rounded-2xl p-1.5 lg:h-[78vh] ${
           zoom > 0.75 ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''
