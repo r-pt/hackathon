@@ -1,6 +1,6 @@
 # RutaCampus — Navegación Universitaria Accesible 3D & GPS en Tiempo Real (UTFSM Casa Central)
 
-Aplicación web de navegación accesible dentro de **UTFSM Casa Central (Valparaíso)** que calcula rutas óptimas paso a paso considerando **movilidad reducida**, **incidencias activas en tiempo real** (ascensores, rampas, escaleras o pasillos bloqueados), **condiciones climáticas** (lluvia y rutas techadas) y **seguimiento GPS en vivo** sobre un **mapa interactivo 3D isométrico y cenital**.
+Aplicación web que ayuda a estudiantes a orientarse y desplazarse dentro de **UTFSM Casa Central (Valparaíso)**. Calcula rutas paso a paso que consideran **movilidad reducida**, **incidencias activas en tiempo real** (ascensores, rampas, escaleras o pasillos bloqueados), **condiciones climáticas** (lluvia y rutas techadas) y **seguimiento GPS en vivo** sobre un **mapa interactivo 3D isométrico y cenital**.
 
 **Equipo: "Los Larpers"**
 
@@ -22,18 +22,28 @@ Aplicación web de navegación accesible dentro de **UTFSM Casa Central (Valpara
 
 ---
 
-> **Nota / Disclaimer sobre el Mapa (Prototipo Demostrativo):** El mapa 3D/cenital incluido en este proyecto es un **prototipo funcional inspirado en UTFSM Casa Central** y **no refleja con exactitud arquitectónica ni geográfica los edificios reales de la universidad al pie de la letra**. Su propósito es servir como demostración práctica del problema que buscamos solucionar (ruteo accesible multicriterio, evasión de incidencias en vivo, protección ante lluvia, guiado GPS/voz y evacuación segura).
+> **Nota / Disclaimer sobre el Mapa (Prototipo Demostrativo):** El mapa 3D/cenital es un **prototipo funcional inspirado en UTFSM Casa Central**. **No refleja con exactitud arquitectónica ni geográfica los edificios reales de la universidad.** Su propósito es demostrar el problema que buscamos resolver: ruteo accesible, evasión de incidencias en vivo, protección ante lluvia, guiado GPS/voz y evacuación segura.
 
 ---
 
 ## El Problema Planteado
 
-Orientarse en un campus universitario multinivel y con arquitectura compleja como **UTFSM Casa Central** presenta barreras cotidianas críticas, especialmente para estudiantes, docentes y visitantes con **movilidad reducida**:
+Dentro de un campus universitario, los estudiantes necesitan desplazarse constantemente entre edificios, salas, laboratorios y bibliotecas. Esa tarea no es igual de sencilla para todos. Las barreras de orientación y desplazamiento dependen de la distribución de los espacios, las condiciones de los recorridos, la accesibilidad de la infraestructura y la claridad de la información disponible.
 
-- **Desniveles y escaleras no señalizadas en mapas planos**: los mapas estáticos 2D no distinguen claramente qué conexiones son rampas accesibles, ascensores o escaleras ni cómo se conectan los pisos superiores e inferiores.
-- **Incidencias sin aviso en tiempo real**: cuando un ascensor entra en mantenimiento, una rampa queda obstruida o un pasillo se cierra, las personas se enteran recién al llegar al punto bloqueado y deben retroceder largos tramos.
-- **Clima adverso en tramos descubiertos**: en días de lluvia, elegir un trayecto exterior sin techo puede volver inseguro o incómodo el desplazamiento, mientras existen corredores cubiertos alternativos.
-- **Mapas difíciles de interpretar**: la falta de contexto espacial 3D, edificios diferenciados y guía paso a paso dificulta saber dónde está uno y qué dirección tomar al cambiar de edificio o nivel.
+Identificamos la siguiente dificultad concreta:
+
+> **Un estudiante con movilidad reducida no puede saber, antes de salir, si una ruta entre dos espacios del campus es accesible en ese momento.** Los mapas planos no distinguen rampas, ascensores y escaleras, y las incidencias (un ascensor en mantenimiento, una rampa obstruida, un pasillo cerrado) no se informan antes de llegar al punto bloqueado.
+
+Esta dificultad se manifiesta en cuatro situaciones:
+
+- **Desniveles y escaleras no señalizadas en mapas planos:** los mapas 2D no muestran qué conexiones son rampas, ascensores o escaleras, ni cómo se conectan los pisos.
+- **Incidencias sin aviso:** cuando un ascensor se detiene o un pasillo se cierra, el estudiante se entera al llegar y debe retroceder.
+- **Lluvia en tramos descubiertos:** en días de lluvia, un trayecto exterior sin techo puede ser incómodo o inseguro, aunque existan corredores cubiertos alternativos.
+- **Orientación en edificios de varios niveles:** sin contexto espacial 3D ni guía paso a paso, cuesta saber dónde se está y qué dirección tomar al cambiar de edificio o de piso.
+
+**Estudiantes beneficiados:** principalmente estudiantes con movilidad reducida. Como la app también guía a cualquier persona en edificios de varios niveles, otros estudiantes que se desplazan por el campus pueden beneficiarse, por ejemplo quienes llegan por primera vez.
+
+**Aspecto que mejora:** la **disponibilidad y claridad de la información** para orientarse, y la **accesibilidad de los recorridos** al momento de elegirlos.
 
 ---
 
@@ -44,65 +54,87 @@ RutaCampus se vincula con los siguientes ODS de la Agenda 2030 de Naciones Unida
 - **ODS 10 — Reducción de las desigualdades:** el modo movilidad reducida y las rutas sin escaleras buscan que todas las personas puedan orientarse y desplazarse en el campus en igualdad de condiciones.
 - **ODS 11 — Ciudades y comunidades sostenibles:** en particular, la meta 11.2 (sistemas de transporte accesibles para todos) y la meta 11.7 (espacios públicos accesibles e inclusivos). La app mejora el desplazamiento interno del campus, evita tramos bloqueados y prioriza recorridos cubiertos ante la lluvia.
 
-**Usuarios y beneficiarios:** estudiantes, docentes, personal administrativo y visitantes de UTFSM Casa Central, con foco en personas con movilidad reducida y en quienes necesitan orientarse en edificios de varios niveles.
+**Usuarios y beneficiarios:** estudiantes de UTFSM Casa Central, con foco en quienes tienen movilidad reducida y en quienes necesitan orientarse en edificios de varios niveles.
 
-**Impacto esperado:** reducir tiempos perdidos por incidencias no informadas, disminuir desplazamientos inaccesibles y mejorar la autonomía de personas con movilidad reducida dentro del campus.
+**Impacto esperado:** reducir el tiempo perdido por incidencias no informadas, evitar desplazamientos inaccesibles y aumentar la autonomía de estudiantes con movilidad reducida dentro del campus.
+
+---
+
+## Supuestos y Limitaciones
+
+Esta sección declara los supuestos del prototipo, como permite el enunciado de la Hackathon LYOSS USM 2026.
+
+**Supuestos:**
+
+- **Mapa y grafo:** el plano de UTFSM Casa Central es una **aproximación**. Los edificios, nodos (20) y tramos (30) representan el campus de forma simplificada, no un levantamiento oficial.
+- **Datos de accesibilidad:** la información de ascensores, rampas, escaleras y cobertura de techos proviene de **datos de ejemplo** cargados en `backend/db/seed.sql` y en el almacén local. **[confirmar: si estos datos fueron verificados en terreno o son supuestos]**.
+- **Incidencias:** en la demo, las incidencias se reportan manualmente desde la app. **No existe integración con los sistemas de mantención de la universidad.**
+- **Clima:** la lluvia se consulta en vivo a Open-Meteo. La opción **Simular lluvia** permite forzar ese escenario para la demo.
+- **Usuarios:** **[confirmar: si hubo pruebas con estudiantes con movilidad reducida o si la validación fue solo técnica]**.
+
+**Limitaciones:**
+
+- **GPS:** la ubicación en vivo requiere permiso del navegador. En interiores, su precisión es limitada, por eso existe el simulador de recorrido.
+- **Voz:** la narración usa la Web Speech API. Su calidad y disponibilidad dependen del navegador y de las voces instaladas en el dispositivo.
+- **Autenticación:** la demo usa una sesión de prueba. **No valida identidad institucional** ni verifica que el usuario sea estudiante de la USM.
+- **Alcance:** la app **no reemplaza la señalética oficial, ni los planos ni una evaluación formal de accesibilidad** del campus.
+- **Datos personales:** la app usa la ubicación del dispositivo solo para mostrar la posición en el mapa. **[confirmar: política de tratamiento si la app se usa fuera de la demo]**.
 
 ---
 
 ## Cómo lo Buscamos Solucionar
 
-CampusRoute integra un grafo espacial multicapa del campus con ruteo inteligente, visualización interactiva y reportes comunitarios:
+CampusRoute integra un grafo espacial multicapa del campus con ruteo inteligente, visualización interactiva y reportes de incidencias:
 
 1. **Motor de Ruteo Accesible Multi-Criterio (`A*` / `Dijkstra`) con Penalizaciones de Escaleras y Elevación**
 
    - **Modo Movilidad Reducida**: descarta automáticamente escaleras y tramos no accesibles (`is_accessible = false`), priorizando rampas y ascensores operativos y verificando accesibilidad sin escalones.
-   - **Penalizaciones Reales de Escaleras y Pendiente**: las variables de entorno `ENABLE_FLOOR_STAIRS`, `ENABLE_ELEVATION_STAIRS`, `STAIR_STEP_PENALTY_SECONDS` (`0.7 s/peldaño`) y `ELEVATION_SLOPE_PENALTY_FACTOR` (`1.5`) afectan directamente el filtrado de tramos, el peso del grafo y el tiempo estimado de viaje tanto en el backend FastAPI como en el respaldo offline `fallback.ts`.
+   - **Penalizaciones Reales de Escaleras y Pendiente**: las variables de entorno `ENABLE_FLOOR_STAIRS`, `ENABLE_ELEVATION_STAIRS`, `STAIR_STEP_PENALTY_SECONDS` (`0.7 s/peldaño`) y `ELEVATION_SLOPE_PENALTY_FACTOR` (`1.5`) afectan el filtrado de tramos, el peso del grafo y el tiempo estimado de viaje, tanto en el backend FastAPI como en el respaldo offline `fallback.ts`.
    - **Evasión Dinámica de Incidencias**: excluye nodos y aristas con incidencias activas de severidad `blocking`, penaliza incidencias de tipo `warning` (`×1.8`) e informa qué conflictos fueron evitados (`avoided_conflicts`) o cuáles impiden llegar (`422 NO_ACCESSIBLE_ROUTE` con `blocking_incident_ids`).
-   - **Protección ante Lluvia**: consulta el clima en vivo vía **Open-Meteo** (y permite activar **Simular lluvia** o **Preferir tramos cubiertos**), aplicando penalización (`×2.5`) sobre caminos descubiertos (`is_covered = false`) para privilegiar pasillos techados.
-   - **Selectores agrupados por edificio y modal completo de recorrido**: los selectores de origen y destino agrupan los destinos por edificio/zona (sin exponer selector técnico de algoritmo al usuario final), y el modal **`📋 Ver todos los pasos del recorrido`** presenta el itinerario completo con narración por voz.
+   - **Protección ante Lluvia**: consulta el clima en vivo vía **Open-Meteo** (o permite activar **Simular lluvia** o **Preferir tramos cubiertos**), aplicando penalización (`×2.5`) sobre caminos descubiertos (`is_covered = false`) para privilegiar pasillos techados.
+   - **Selectores agrupados por edificio y modal completo de recorrido**: los selectores de origen y destino agrupan los destinos por edificio/zona, y el modal **`📋 Ver todos los pasos del recorrido`** presenta el itinerario completo con narración por voz.
 
 2. **Mapa Interactivo 3D Isométrico + Vista Cenital a Ancho Completo (`~78vh`) con Zoom/Paneo Vectorial (UTFSM Casa Central, `2200×1450`)**
 
-   - **Layout Mapa-Primero (`~78vh`) + Zoom y Paneo Vectorial SVG (`60%–350%`)**: el mapa 3D ocupa todo el ancho superior (`~78vh` sin recortes) con controles `+` / `−` / `⟲ Restablecer`, zoom con rueda del mouse y paneo libre hasta los bordes sin perder nitidez vectorial, seguido por una grilla inferior de 3 columnas (controles, indicaciones y números de emergencia).
-   - **6 Variantes Arquitectónicas 3D en el Eje Real Sur→Norte de UTFSM Casa Central (`🏠 Techos 3D`)**:
-     - **Edificio A — Frontis y Aula Magna (`bld-a`, eje central sur)**: planta en "U" de 8 vértices orientada hacia Av. España + **Torre Gótica del Reloj central** elevada con chapitel piramidal y esfera luminosa.
-     - **Edificio B — Claustro y Biblioteca (`bld-b`, eje central medio)**: planta tipo claustro con Patio Interior hundido ajardinado y techo perimetral en anillo.
-     - **Edificio C — Química y Laboratorios (`bld-c`, eje central norte)**: planta en "L" con cubierta compuesta a cuatro aguas frente a Av. Placeres.
-     - **Edificio F — Informática (DI) (`bld-f`, sector sur-oriente)**: doble nave industrial en "H" con techo en diente de sierra (`sawtooth`) entre jardines sur-oriente.
-     - **Edificio M — Mecánica y Talleres (`bld-m`, sector poniente junto a la cancha)**: pabellón escalonado en "T" con cubierta cruzada translúcida.
-     - **Edificio P — Gimnasio y Federación (`bld-p`, extremo norte Av. Placeres)**: pabellón octagonal achaflanado con cubierta facetada de 8 faldones.
-     - Todos los techos 3D incorporan **tragaluces translúcidos** y placas sin duplicados en vista apilada que permiten ver y hacer clic en los nodos interiores (`Piso 1` y `Piso 2`).
-   - **Calles Ortogonales con Esquinas a 90°, Textura de Piso 3D y Podios de Inicio/Llegada (`20` nodos, `30` tramos, `17` destinos)**:
-     - **Red vial 100% ortogonal (`2200×1450`)**: separación amplia entre los 6 edificios sobre el eje central `x = 1080` y trazado de calzadas con esquinas a 90° (giros en L y Z sin diagonales arbitrarias), aceras y bordillos en tonos neutros, eje central segmentado y pasos de cebra peatonales en cada esquina, además de 4 plazoletas/cruces pavimentados (*Explanada Monumental Av. España*, *Plaza Central del Claustro*, *Paseo Poniente — Mirador Cancha* y *Crucero Pavimentado Av. Placeres*).
-     - **Textura de losa 3D y áreas verdes**: retícula proyectada de adoquines (`140 px`) con marcas de losa (`280 px`) y 4 parterres ajardinados con árboles 3D sobre el Piso 1 tanto en vista isométrica como cenital.
-     - **Podios 3D luminosos de Inicio y Llegada**: balizas multicapa con haz de luz vertical, iconos escalados y carteles flotantes 3D **`📍 PUNTO DE INICIO`** y **`🏁 META · LLEGADA`**.
-     - **4 destinos en Piso 2** (`Sala A-201 — Frontis Sur`, `Biblioteca Central — Sala B-202`, `Ascensor Nivel 2 — Frontis` y `Ascensor Nivel 2 — Biblioteca`) unidos al Piso 1 tanto por ascensores verticales 3D (`🛗 ASCENSOR 1↔2`) como por escaleras interiores 3D en zigzag (`🪜 ESCALERA P1↔P2`), además de escalinatas exteriores de elevación (`🪜 Δz`).
+   - **Layout Mapa-Primero (`~78vh`) + Zoom y Paneo Vectorial SVG (`60%–350%`)**: el mapa 3D ocupa todo el ancho superior, con controles `+` / `−` / `⟲ Restablecer`, zoom con rueda del mouse y paneo libre hasta los bordes, seguido por una grilla inferior de 3 columnas (controles, indicaciones y números de emergencia).
+   - **6 Variantes Arquitectónicas 3D (`🏠 Techos 3D`)**, ordenadas de sur a norte según el eje del campus:
+     - **Edificio A — Frontis y Aula Magna (`bld-a`)**: planta en "U" de 8 vértices orientada hacia Av. España, con una torre central elevada con chapitel piramidal y esfera luminosa.
+     - **Edificio B — Claustro y Biblioteca (`bld-b`)**: planta tipo claustro con patio interior hundido y techo perimetral en anillo.
+     - **Edificio C — Química y Laboratorios (`bld-c`)**: planta en "L" con cubierta a cuatro aguas frente a Av. Placeres.
+     - **Edificio F — Informática (DI) (`bld-f`)**: doble nave en "H" con techo en diente de sierra, entre jardines sur-oriente.
+     - **Edificio M — Mecánica y Talleres (`bld-m`)**: pabellón escalonado en "T" con cubierta cruzada translúcida, junto a la cancha.
+     - **Edificio P — Gimnasio y Federación (`bld-p`)**: pabellón octogonal achaflanado con cubierta facetada de 8 faldones, en el extremo norte.
+     - Todos los techos incorporan **tragaluces translúcidos** y permiten ver y hacer clic en los nodos interiores (`Piso 1` y `Piso 2`).
+   - **Calles Ortogonales, Textura de Piso 3D y Podios de Inicio/Llegada (`20` nodos, `30` tramos, `17` destinos)**:
+     - **Red vial ortogonal (`2200×1450`)** con calzadas de esquinas a 90°, aceras, pasos de cebra en cada esquina y cuatro plazoletas pavimentadas (*Explanada Monumental Av. España*, *Plaza Central del Claustro*, *Paseo Poniente — Mirador Cancha* y *Crucero Pavimentado Av. Placeres*).
+     - **Textura de losa 3D y áreas verdes**: retícula de adoquines (`140 px`) con marcas de losa (`280 px`) y cuatro parterres ajardinados con árboles 3D.
+     - **Podios 3D luminosos de Inicio y Llegada**: balizas con haz de luz vertical y carteles flotantes **`📍 PUNTO DE INICIO`** y **`🏁 META · LLEGADA`**.
+     - **4 destinos en Piso 2** (`Sala A-201 — Frontis Sur`, `Biblioteca Central — Sala B-202`, `Ascensor Nivel 2 — Frontis` y `Ascensor Nivel 2 — Biblioteca`), unidos al Piso 1 por ascensores verticales 3D (`🛗 ASCENSOR 1↔2`), escaleras interiores en zigzag (`🪜 ESCALERA P1↔P2`) y escalinatas exteriores de elevación (`🪜 Δz`).
      - **2 Salidas señalizadas (`🚪 SALIDA`)**: *Salida Norte — Av. Placeres* y *Salida Oriente — Portón Av. España*, junto al *Acceso Principal Av. España*.
-   - **Orientación Espacial 3D**: separación vertical amplia entre Piso 1 y Piso 2 (`ISO_FLOOR_STEP = 420`), rotación interactiva `0° / 90° / 180° / 270°` con contra-rotación automática de etiquetas limpias (sin duplicar `(Piso X)` ni prefijos de edificio), vista 3D Isométrica / Cenital, y una **Estrella Polar 3D interactiva (`CompassRose`)** con puntos cardinales reales y referencias en los bordes (`N · Av. Placeres`, `S · Av. España`, `O · Mecánica / Cancha`, `E · Informática / Jardines`).
+   - **Orientación Espacial 3D**: separación vertical entre Piso 1 y Piso 2 (`ISO_FLOOR_STEP = 420`), rotación `0° / 90° / 180° / 270°` con etiquetas que siempre quedan legibles, vista 3D Isométrica / Cenital y una **Estrella Polar 3D interactiva (`CompassRose`)** con referencias cardinales en los bordes (`N · Av. Placeres`, `S · Av. España`, `O · Mecánica / Cancha`, `E · Informática / Jardines`).
 
 3. **Modo GPS en Tiempo Real, Instrucciones por Voz y Simulador de Recorrido**
 
-   - **Síntesis de Voz en Español (`Web Speech API`)**: botón `🔊 Escuchar ruta` / `⏹ Detener voz` con resaltado automático del paso narrado, botón `🔊` individual en cada paso y toggle `🔈 Auto-voz` que anuncia cada giro, cambio de piso y llegada en modo GPS.
-   - **GPS en vivo (`navigator.geolocation.watchPosition`)**: georreferenciado al plano de UTFSM Casa Central (`2200×1450`) con ícono de persona con radar sobre podio luminoso para la ubicación actual (`📍 PUNTO DE INICIO`) y banderín para la meta (`🏁 META · LLEGADA`).
-   - **Simulador integrado paso a paso y auto-recorrido** que permite demostrar y probar el desplazamiento en tiempo real incluso en interiores o fuera del campus.
+   - **Síntesis de Voz en Español (`Web Speech API`)**: botón `🔊 Escuchar ruta` / `⏹ Detener voz` con resaltado del paso narrado, botón `🔊` en cada paso y toggle `🔈 Auto-voz` que anuncia cada giro, cambio de piso y llegada.
+   - **GPS en vivo (`navigator.geolocation.watchPosition`)**: posición actual sobre el plano con ícono de persona y meta con banderín (`🏁 META · LLEGADA`).
+   - **Simulador integrado de recorrido** para demostrar la navegación en tiempo real, incluso en interiores o fuera del campus.
 
 4. **Actualización en Vivo de Caminos Disponibles al Reportar Incidencias + Respaldo Offline**
 
-   - Modal accesible (`<dialog>` nativo) con auto-activación de sesión demo (sin fricción de login) para listar, reportar o resolver incidencias tanto en nodos (ascensores, aulas) como en tramos pavimentados.
-   - **Recálculo instantáneo y visibilidad de disponibilidad**: al crear o resolver una incidencia, la app recalcula de inmediato la ruta óptima y el mapa 3D, marca con franjas rojas `⛔ CERRADO` todo tramo bloqueado o conectado a un nodo bloqueado, muestra un aviso del desvío aplicado (también narrado por voz si `Auto-voz` está activo) y actualiza el contador en vivo `🛣️ Caminos disponibles: X / 30`.
-   - **Motor de respaldo offline en navegador (`frontend/src/api/fallback.ts`)** sincronizado con `client.ts` y almacén local en memoria en backend (`backend/app/db/local_store.py`), garantizando continuidad ante caídas de red o sin Supabase.
+   - Modal accesible (`<dialog>` nativo) para listar, reportar o resolver incidencias en **nodos** (ascensores, aulas) y en **tramos pavimentados**. La demo inicia sesión automáticamente.
+   - **Recálculo instantáneo**: al crear o resolver una incidencia, la app recalcula la ruta y el mapa 3D, marca con `⛔ CERRADO` los tramos bloqueados, muestra el desvío aplicado (también narrado si `Auto-voz` está activo) y actualiza el contador `🛣️ Caminos disponibles: X / 30`.
+   - **Motor de respaldo offline en navegador (`frontend/src/api/fallback.ts`)**, sincronizado con `client.ts` y con el almacén local en memoria del backend (`backend/app/db/local_store.py`), que mantiene la continuidad ante caídas de red o si Supabase no está configurado.
 
 5. **Modo Evacuación Inteligente (`🚨 Evacuar`), Números de Emergencia UTFSM y Compartir Ruta por QR**
 
-   - **Modo Evacuación Inteligente (`🚨 Evacuar`)**: evalúa en paralelo las 3 salidas seguras del campus (*Salida Norte Av. Placeres*, *Salida Oriente Portón Av. España* y *Acceso Principal Av. España*) respetando incidencias bloqueantes activas y movilidad reducida, selecciona automáticamente la salida más cercana/óptima, la traza en el mapa 3D y la anuncia inmediatamente por voz en español.
-   - **Números de Emergencia UTFSM Casa Central Valparaíso (`EmergencyContacts.tsx`)**: tarjeta dedicada de acceso rápido con enlaces directos `tel:` a Central de Emergencias (`+56 32 265 4222`), Supervisor de Seguridad 24/7 (`+569 7877 1654`), Atención de Salud Sansanito (`+56 32 265 4639` / `+569 7334 4188`) y Prevencionista de Riesgos (`+569 6229 5110`).
-   - **Compartir Ruta por Enlace + Código QR Offline (`ShareRouteModal.tsx`)**: genera un código QR vectorial SVG 100% offline con `qrcode` y un enlace compacto con parámetros de URL (`?from=&to=&rm=1&cov=1&rain=1&evac=1`) que hidrata automáticamente origen, destino, preferencias y modo evacuación al abrirlo en otro teléfono.
+   - **Modo Evacuación (`🚨 Evacuar`)**: evalúa en paralelo las 3 salidas seguras del campus, respeta incidencias bloqueantes y movilidad reducida, selecciona la salida más conveniente, la traza en el mapa y la anuncia por voz.
+   - **Números de Emergencia UTFSM Casa Central (`EmergencyContacts.tsx`)**: tarjeta de acceso rápido con enlaces `tel:` a Central de Emergencias (`+56 32 265 4222`), Supervisor de Seguridad 24/7 (`+569 7877 1654`), Atención de Salud Sansanito (`+56 32 265 4639` / `+569 7334 4188`) y Prevencionista de Riesgos (`+569 6229 5110`).
+   - **Compartir Ruta por Enlace + Código QR Offline (`ShareRouteModal.tsx`)**: genera un QR vectorial SVG con `qrcode` y un enlace con parámetros (`?from=&to=&rm=1&cov=1&rain=1&evac=1`) que restaura origen, destino y preferencias al abrirlo en otro teléfono.
 
 6. **Modo Oscuro Global WCAG AA (`🌙 Modo Oscuro`) y Diseño CSS 3D Táctil**
 
-   - Selector global `🌙 Modo Oscuro` / `☀️ Modo Claro` persistido en `localStorage`, con contraste WCAG AA verificado en todos los paneles, selectores, modales y el motor 3D nocturno del mapa (losa `#0F172A`, calzadas oscuras, cuadrícula cian y edificios con ventanas iluminadas en `#FDE047`).
-   - Superficies biseladas 3D (`.app-stage-bg`, `.panel-3d`, `.card-3d`, `.btn-3d`, `.pill-3d`) con luces especulares, sombras en capas y respeto automático a `prefers-reduced-motion`.
+   - Selector global `🌙 Modo Oscuro` / `☀️ Modo Claro`, persistido en `localStorage`, con contraste WCAG AA en paneles, selectores, modales y el mapa nocturno.
+   - Superficies biseladas 3D (`.panel-3d`, `.card-3d`, `.btn-3d`, `.pill-3d`) con respeto automático a `prefers-reduced-motion`.
 
 ---
 
@@ -110,10 +142,8 @@ CampusRoute integra un grafo espacial multicapa del campus con ruteo inteligente
 
 De acuerdo con las bases de la Hackathon LYOSS USM, declaramos las siguientes herramientas de IA utilizadas durante el desarrollo:
 
-- **Google Antigravity:** orquestación multi-agente para desarrollo paralelo de backend, mapa 3D, paneles y verificación. *Contribución:* [completar: qué partes se generaron o revisaron con esta herramienta].
-- **[Completar si aplica, p. ej. Claude / GitHub Copilot]:** *Contribución:* [completar].
+- **Google Antigravity:** orquestación multi-agente para desarrollo paralelo de backend, mapa 3D, paneles y verificación. 
 - **Skills y guías aplicadas:** `frontend-design`, `modern-web-guidance` (accesibilidad WCAG, `<dialog>` nativo, formularios y `prefers-reduced-motion`) y `ponytail-audit`.
-
 Todo el código generado con asistencia de IA fue revisado, probado y adaptado por el equipo antes de incorporarse a la solución. Los integrantes pueden explicar y modificar el funcionamiento de cualquier parte del sistema.
 
 ---
@@ -142,7 +172,7 @@ Todo el código generado con asistencia de IA fue revisado, probado y adaptado p
 │   │   └── main.py        # Aplicación FastAPI y configuración CORS
 │   ├── db/
 │   │   ├── schema.sql     # Tablas PostgreSQL + políticas RLS (Supabase)
-│   │   └── seed.sql       # Datos iniciales del campus UTFSM Casa Central
+│   │   └── seed.sql       # Datos de ejemplo del campus UTFSM Casa Central
 │   ├── tests/             # Suite Pytest (ruteo, incidencias, contratos)
 │   ├── .env.example
 │   └── requirements.txt
@@ -198,7 +228,7 @@ pip install -r requirements.txt
 cp .env.example .env
 ```
 
-Verifica `backend/.env` (variables de entorno principales, clima UTFSM y escaleras entre pisos/desniveles):
+Verifica `backend/.env` (variables principales de clima, escaleras entre pisos y desniveles):
 
 ```
 CAMPUS_LAT=-33.0344
@@ -209,7 +239,7 @@ STAIR_STEP_PENALTY_SECONDS=0.7
 ELEVATION_SLOPE_PENALTY_FACTOR=1.5
 ```
 
-> **Nota:** Si no ingresas credenciales reales de Supabase en `backend/.env`, el backend arranca automáticamente usando el almacén local en memoria (`local_store.py`) con el grafo completo de UTFSM Casa Central (20 nodos, 30 tramos) y soporte para el token de demostración.
+> **Nota:** si no ingresas credenciales reales de Supabase en `backend/.env`, el backend arranca con el almacén local en memoria (`local_store.py`), con el grafo completo del campus (20 nodos, 30 tramos) y el token de demostración.
 
 Levantar el servidor FastAPI en desarrollo:
 
@@ -217,7 +247,7 @@ Levantar el servidor FastAPI en desarrollo:
 uvicorn app.main:app --reload --port 8000
 ```
 
-La API quedará disponible en `http://localhost:8000` y su documentación interactiva Swagger en `http://localhost:8000/docs`.
+La API quedará disponible en `http://localhost:8000` y su documentación Swagger en `http://localhost:8000/docs`.
 
 Ejecutar la suite de pruebas del backend:
 
@@ -227,7 +257,7 @@ pytest -v
 
 ### 3. Configurar e Iniciar el Frontend (`frontend/`)
 
-En una nueva terminal desde la raíz del proyecto:
+En una nueva terminal, desde la raíz del proyecto:
 
 ```bash
 cd frontend
@@ -235,7 +265,7 @@ npm install
 cp .env.example .env
 ```
 
-Verifica que `frontend/.env` apunte al backend local y defina las variables de escaleras/elevaciones:
+Verifica que `frontend/.env` apunte al backend local:
 
 ```
 VITE_API_URL=http://localhost:8000
@@ -254,7 +284,7 @@ Iniciar el servidor de desarrollo:
 npm run dev
 ```
 
-Abre la URL local indicada por Vite (por defecto `http://localhost:5173`).
+Abre la URL que indique Vite (por defecto `http://localhost:5173`).
 
 Generar el build de producción (incluye chequeo estricto de TypeScript):
 
@@ -264,7 +294,7 @@ npm run build
 
 ### 4. (Opcional) Mock Server con Stoplight Prism
 
-Si deseas probar el frontend exclusivamente contra el contrato OpenAPI sin levantar Python:
+Para probar el frontend contra el contrato OpenAPI sin levantar Python:
 
 ```bash
 npx -y @stoplight/prism-cli mock docs/openapi.yaml -p 4010
@@ -272,11 +302,11 @@ npx -y @stoplight/prism-cli mock docs/openapi.yaml -p 4010
 
 Y configura `VITE_API_URL=http://localhost:4010` en `frontend/.env`.
 
-### 5. (Opcional) Configuración de Supabase (Base de Datos y Auth Real)
+### 5. (Opcional) Configuración de Supabase
 
 1. Crea un proyecto en [Supabase](https://supabase.com/).
-2. Abre el **SQL Editor** en tu proyecto y ejecuta primero `backend/db/schema.sql` (crea las tablas `profiles`, `buildings`, `nodes`, `edges`, `incidents` y sus políticas RLS).
-3. Luego ejecuta `backend/db/seed.sql` para cargar los edificios, nodos, aristas y la incidencia inicial del campus.
+2. En el **SQL Editor**, ejecuta primero `backend/db/schema.sql` (tablas `profiles`, `buildings`, `nodes`, `edges`, `incidents` y sus políticas RLS).
+3. Luego ejecuta `backend/db/seed.sql` para cargar edificios, nodos, aristas y la incidencia inicial.
 4. Copia `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` y `SUPABASE_JWT_SECRET` en `backend/.env`, y `VITE_SUPABASE_URL` + `VITE_SUPABASE_ANON_KEY` en `frontend/.env`.
 
 ---
@@ -285,16 +315,16 @@ Y configura `VITE_API_URL=http://localhost:4010` en `frontend/.env`.
 
 ### IA y Flujo Agéntico
 
-- **Google Antigravity** (orquestación Swarm Multi-Agente para desarrollo paralelo de backend, mapa 3D, paneles y verificación).
+- **Google Antigravity** (orquestación multi-agente para desarrollo paralelo de backend, mapa 3D, paneles y verificación).
 
 ### Frontend
 
 - **React 19** + **TypeScript** + **Vite 8**
 - **Tailwind CSS v4** (`@tailwindcss/vite`)
-- **TanStack React Query v5** (`@tanstack/react-query`) para caché, sincronización e invalidación automática de mapa, incidencias y rutas
-- **Motor SVG 3D isométrico propio** con polígonos extruidos no rectangulares, techos 3D translúcidos, zoom/paneo vectorial (`75%–300%`) y soporte Dual Theme WCAG AA (Claro / Oscuro) sin dependencias WebGL
-- **`qrcode`**: generación vectorial SVG 100% offline de códigos QR para compartir rutas y evacuaciones por deep-link (`?from=&to=&rm=`)
-- **Web Speech API** (`window.speechSynthesis` en `es-CL` / `es-ES`) para narración de ruta completa, evacuación y giro por paso
+- **TanStack React Query v5** para caché, sincronización e invalidación automática de mapa, incidencias y rutas
+- **Motor SVG 3D isométrico propio** con polígonos extruidos, techos translúcidos, zoom/paneo vectorial (`75%–300%`) y soporte de tema claro/oscuro WCAG AA, sin dependencias WebGL
+- **`qrcode`**: generación de QR en SVG, sin conexión, para compartir rutas por deep-link
+- **Web Speech API** (`window.speechSynthesis`, `es-CL` / `es-ES`) para narrar la ruta
 - **Web Geolocation API** (`navigator.geolocation.watchPosition`)
 
 ### Backend
@@ -318,4 +348,3 @@ Y configura `VITE_API_URL=http://localhost:4010` en `frontend/.env`.
 
 - **Pytest** (**43 tests** automatizados de ruteo accesible, penalizaciones de escaleras/elevación, incidencias, clima e integración en `backend/tests/`)
 - **TypeScript (`tsc --noEmit`)** y **Vite Production Build (`npm run build`)**
-
