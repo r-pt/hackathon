@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from fastapi.testclient import TestClient
 
+from app.core.config import get_settings
 from app.core.errors import APIError
 from app.main import app
 from app.routers.routes import load_campus_graph
@@ -51,7 +52,7 @@ def test_normal_route_astar_and_dijkstra_match_optimal_weight() -> None:
 
     # Normal user takes Patio Central -> Hall A -> Stairs A -> Aula 204
     # Distance: 45 + 35 + 20 + 15 + 25 = 140m
-    # Weight:   45 + 35 + 20 + 21 + 25 = 146.0
+    # Weight:   45 + 35 + 20 + (21 + 4*1.5 slope + 20*0.7*0.5 stairs) + 25 = 159.0
     assert res_astar.path_node_ids == [
         "n-entrada-sur",
         "n-patio-central",
@@ -64,8 +65,8 @@ def test_normal_route_astar_and_dijkstra_match_optimal_weight() -> None:
     assert res_astar.metrics.uses_stairs is True
     assert res_astar.metrics.uses_elevator is False
     assert res_astar.accessibility_verified is False
-    assert res_astar.graph_stats.total_weight == pytest.approx(146.0)
-    assert res_dijkstra.graph_stats.total_weight == pytest.approx(146.0)
+    assert res_astar.graph_stats.total_weight == pytest.approx(159.0)
+    assert res_dijkstra.graph_stats.total_weight == pytest.approx(159.0)
     assert res_astar.graph_stats.algorithm_used == "astar"
     assert res_dijkstra.graph_stats.algorithm_used == "dijkstra"
     assert res_astar.graph_stats.nodes_explored <= res_dijkstra.graph_stats.nodes_explored
@@ -648,3 +649,154 @@ def test_http_get_external_weather_returns_contract_shape() -> None:
         "fetched_at",
     }
     assert body["fallback_used"] is True
+
+
+# ---------------------------------------------------------------------------
+# 4. Stair & elevation environment variable routing/metrics tests
+# ---------------------------------------------------------------------------
+
+
+def test_disable_floor_stairs_env_routes_via_elevator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    nodes, edges, incidents = get_casa_central_graph()
+    req = CalculateRouteRequest(
+        origin_node_id="cc-edificio-a-p1",
+        destination_node_id="cc-aula-a201",
+        reduced_mobility=False,
+        algorithm="astar",
+    )
+
+    try:
+        monkeypatch.setenv("ENABLE_FLOOR_STAIRS", "false")
+        get_settings.cache_clear()
+        res = calculate_route_plan(
+            request=req, nodes=nodes, edges=edges, incidents=incidents
+        )
+        res_dijkstra = calculate_route_plan(
+            request=req.model_copy(update={"algorithm": "dijkstra"}),
+            nodes=nodes,
+            edges=edges,
+            incidents=incidents,
+        )
+    finally:
+        monkeypatch.delenv("ENABLE_FLOOR_STAIRS", raising=False)
+        get_settings.cache_clear()
+
+    assert "cc-e16" not in res.path_edge_ids
+    assert "cc-e17" not in res.path_edge_ids
+    assert res.metrics.uses_stairs is False
+    assert res.metrics.uses_elevator is True
+    assert "cc-e8" in res.path_edge_ids
+    assert res.graph_stats.total_weight == pytest.approx(
+        res_dijkstra.graph_stats.total_weight
+    )
+
+
+def test_disable_elevation_stairs_env_routes_via_ramp(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    nodes, edges, incidents = get_casa_central_graph()
+    req = CalculateRouteRequest(
+        origin_node_id="cc-edificio-p",
+        destination_node_id="cc-salida-placeres",
+        reduced_mobility=False,
+        algorithm="astar",
+    )
+
+    try:
+        monkeypatch.setenv("ENABLE_ELEVATION_STAIRS", "false")
+        get_settings.cache_clear()
+        res = calculate_route_plan(
+            request=req, nodes=nodes, edges=edges, incidents=incidents
+        )
+        res_espana = calculate_route_plan(
+            request=CalculateRouteRequest(
+                origin_node_id="cc-acceso-espana",
+                destination_node_id="cc-edificio-a-p1",
+                reduced_mobility=False,
+                simulated_blocked_node_ids=["cc-explanada-espana"],
+            ),
+            nodes=nodes,
+            edges=edges,
+            incidents=incidents,
+        )
+    finally:
+        monkeypatch.delenv("ENABLE_ELEVATION_STAIRS", raising=False)
+        get_settings.cache_clear()
+
+    assert "cc-e19" not in res.path_edge_ids
+    assert res.metrics.uses_stairs is False
+    assert res.metrics.uses_ramp is True
+    assert "cc-e1" not in res_espana.path_edge_ids
+    assert res_espana.metrics.uses_stairs is False
+    assert res_espana.metrics.uses_ramp is True
+
+
+def test_elevation_slope_penalty_factor_increases_weight_on_dz_paths(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    nodes, edges, incidents = get_casa_central_graph()
+    req = CalculateRouteRequest(
+        origin_node_id="cc-acceso-espana",
+        destination_node_id="cc-edificio-a-p1",
+        reduced_mobility=True,
+        algorithm="astar",
+    )
+
+    try:
+        monkeypatch.setenv("ELEVATION_SLOPE_PENALTY_FACTOR", "0.0")
+        get_settings.cache_clear()
+        res_flat = calculate_route_plan(
+            request=req, nodes=nodes, edges=edges, incidents=incidents
+        )
+
+        monkeypatch.setenv("ELEVATION_SLOPE_PENALTY_FACTOR", "5.0")
+        get_settings.cache_clear()
+        res_steep = calculate_route_plan(
+            request=req, nodes=nodes, edges=edges, incidents=incidents
+        )
+    finally:
+        monkeypatch.delenv("ELEVATION_SLOPE_PENALTY_FACTOR", raising=False)
+        get_settings.cache_clear()
+
+    # cc-acceso-espana (z=0) -> cc-explanada-espana (z=2) -> cc-edificio-a-p1 (z=4): total dz=4
+    assert res_steep.graph_stats.total_weight == pytest.approx(
+        res_flat.graph_stats.total_weight + 20.0
+    )
+
+
+def test_stair_step_penalty_seconds_increases_weight_and_time_on_stairs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    nodes, edges, incidents = get_casa_central_graph()
+    req = CalculateRouteRequest(
+        origin_node_id="cc-edificio-a-p1",
+        destination_node_id="cc-aula-a201",
+        reduced_mobility=False,
+        algorithm="astar",
+    )
+
+    try:
+        monkeypatch.setenv("STAIR_STEP_PENALTY_SECONDS", "0.0")
+        get_settings.cache_clear()
+        res_low = calculate_route_plan(
+            request=req, nodes=nodes, edges=edges, incidents=incidents
+        )
+
+        monkeypatch.setenv("STAIR_STEP_PENALTY_SECONDS", "4.0")
+        get_settings.cache_clear()
+        res_high = calculate_route_plan(
+            request=req, nodes=nodes, edges=edges, incidents=incidents
+        )
+    finally:
+        monkeypatch.delenv("STAIR_STEP_PENALTY_SECONDS", raising=False)
+        get_settings.cache_clear()
+
+    assert res_low.path_edge_ids == ["cc-e16"]
+    assert res_high.path_edge_ids == ["cc-e16"]
+    # cc-e16 has dz=4 -> estimated_steps=20 -> +20*4.0*0.5 = +40 weight, +80s (+1.3 min)
+    assert res_high.graph_stats.total_weight == pytest.approx(
+        res_low.graph_stats.total_weight + 40.0
+    )
+    assert res_high.metrics.estimated_time_min > res_low.metrics.estimated_time_min

@@ -13,6 +13,7 @@ import heapq
 import math
 from dataclasses import dataclass
 
+from app.core.config import get_settings
 from app.core.errors import APIError
 from app.schemas.routes import (
     CalculateRouteRequest,
@@ -78,6 +79,7 @@ def _compute_admissible_scale(
 
 
 def _build_adjacency(
+    nodes_by_id: dict[str, GraphNode],
     edges: list[GraphEdge],
     blocked_nodes: set[str],
     blocked_edges: set[str],
@@ -85,6 +87,11 @@ def _build_adjacency(
     warning_edges: set[str],
     reduced_mobility: bool,
     rain_avoidance_active: bool,
+    *,
+    enable_floor_stairs: bool = True,
+    enable_elevation_stairs: bool = True,
+    stair_step_penalty_seconds: float = 0.7,
+    elevation_slope_penalty_factor: float = 1.5,
 ) -> dict[str, list[tuple[str, GraphEdge, float]]]:
     adjacency: dict[str, list[tuple[str, GraphEdge, float]]] = {}
 
@@ -96,7 +103,27 @@ def _build_adjacency(
         if reduced_mobility and (edge.edge_type == "stairs" or not edge.is_accessible):
             continue
 
+        u = nodes_by_id.get(edge.from_node_id)
+        v = nodes_by_id.get(edge.to_node_id)
+        dz = abs(u.z - v.z) if (u is not None and v is not None) else 0
+        is_floor_change = (u.floor != v.floor) if (u is not None and v is not None) else False
+
+        if edge.edge_type == "stairs":
+            if is_floor_change and not enable_floor_stairs:
+                continue
+            if not is_floor_change and dz > 0 and not enable_elevation_stairs:
+                continue
+
         weight = float(edge.distance_m) * float(edge.base_weight)
+
+        if dz > 0 and edge.edge_type != "elevator" and elevation_slope_penalty_factor > 0:
+            weight += dz * elevation_slope_penalty_factor
+
+        if edge.edge_type == "stairs" and stair_step_penalty_seconds > 0:
+            estimated_steps = (
+                max(1, dz * 5) if dz > 0 else max(1, round(edge.distance_m * 0.5))
+            )
+            weight += estimated_steps * stair_step_penalty_seconds * 0.5
 
         has_warning = (
             edge.id in warning_edges
@@ -131,12 +158,39 @@ def run_shortest_path(
     warning_edges: set[str],
     reduced_mobility: bool,
     rain_avoidance_active: bool,
+    enable_floor_stairs: bool | None = None,
+    enable_elevation_stairs: bool | None = None,
+    stair_step_penalty_seconds: float | None = None,
+    elevation_slope_penalty_factor: float | None = None,
 ) -> SearchResult | None:
     """Run A* or Dijkstra on the filtered weighted graph."""
     if origin_node_id in blocked_nodes or destination_node_id in blocked_nodes:
         return None
 
+    settings = get_settings()
+    resolved_floor_stairs = (
+        settings.enable_floor_stairs
+        if enable_floor_stairs is None
+        else enable_floor_stairs
+    )
+    resolved_elevation_stairs = (
+        settings.enable_elevation_stairs
+        if enable_elevation_stairs is None
+        else enable_elevation_stairs
+    )
+    resolved_stair_penalty = (
+        settings.stair_step_penalty_seconds
+        if stair_step_penalty_seconds is None
+        else stair_step_penalty_seconds
+    )
+    resolved_slope_factor = (
+        settings.elevation_slope_penalty_factor
+        if elevation_slope_penalty_factor is None
+        else elevation_slope_penalty_factor
+    )
+
     adjacency = _build_adjacency(
+        nodes_by_id=nodes_by_id,
         edges=edges,
         blocked_nodes=blocked_nodes,
         blocked_edges=blocked_edges,
@@ -144,6 +198,10 @@ def run_shortest_path(
         warning_edges=warning_edges,
         reduced_mobility=reduced_mobility,
         rain_avoidance_active=rain_avoidance_active,
+        enable_floor_stairs=resolved_floor_stairs,
+        enable_elevation_stairs=resolved_elevation_stairs,
+        stair_step_penalty_seconds=resolved_stair_penalty,
+        elevation_slope_penalty_factor=resolved_slope_factor,
     )
 
     goal_node = nodes_by_id[destination_node_id]
@@ -219,8 +277,34 @@ def calculate_route_plan(
     incidents: list[GraphIncident],
     weather_condition: WeatherCondition = "clear",
     rain_avoidance_active: bool = False,
+    enable_floor_stairs: bool | None = None,
+    enable_elevation_stairs: bool | None = None,
+    stair_step_penalty_seconds: float | None = None,
+    elevation_slope_penalty_factor: float | None = None,
 ) -> CalculateRouteResponse:
     """Validate inputs, execute weighted search, and assemble the contract response."""
+    settings = get_settings()
+    resolved_floor_stairs = (
+        settings.enable_floor_stairs
+        if enable_floor_stairs is None
+        else enable_floor_stairs
+    )
+    resolved_elevation_stairs = (
+        settings.enable_elevation_stairs
+        if enable_elevation_stairs is None
+        else enable_elevation_stairs
+    )
+    resolved_stair_penalty = (
+        settings.stair_step_penalty_seconds
+        if stair_step_penalty_seconds is None
+        else stair_step_penalty_seconds
+    )
+    resolved_slope_factor = (
+        settings.elevation_slope_penalty_factor
+        if elevation_slope_penalty_factor is None
+        else elevation_slope_penalty_factor
+    )
+
     if request.origin_node_id == request.destination_node_id:
         raise APIError(
             status_code=400,
@@ -283,6 +367,10 @@ def calculate_route_plan(
         warning_edges=warning_edges,
         reduced_mobility=request.reduced_mobility,
         rain_avoidance_active=rain_avoidance_active,
+        enable_floor_stairs=resolved_floor_stairs,
+        enable_elevation_stairs=resolved_elevation_stairs,
+        stair_step_penalty_seconds=resolved_stair_penalty,
+        elevation_slope_penalty_factor=resolved_slope_factor,
     )
 
     if result is None:
@@ -303,6 +391,10 @@ def calculate_route_plan(
                 warning_edges=set(),
                 reduced_mobility=request.reduced_mobility,
                 rain_avoidance_active=rain_avoidance_active,
+                enable_floor_stairs=resolved_floor_stairs,
+                enable_elevation_stairs=resolved_elevation_stairs,
+                stair_step_penalty_seconds=resolved_stair_penalty,
+                elevation_slope_penalty_factor=resolved_slope_factor,
             )
             if probe is None:
                 break
@@ -354,6 +446,10 @@ def calculate_route_plan(
             warning_edges=set(),
             reduced_mobility=request.reduced_mobility,
             rain_avoidance_active=rain_avoidance_active,
+            enable_floor_stairs=resolved_floor_stairs,
+            enable_elevation_stairs=resolved_elevation_stairs,
+            stair_step_penalty_seconds=resolved_stair_penalty,
+            elevation_slope_penalty_factor=resolved_slope_factor,
         )
         if active_incidents
         else None
@@ -369,6 +465,7 @@ def calculate_route_plan(
         traversed_edges=traversed_edges,
         nodes_by_id=nodes_by_id,
         reduced_mobility=request.reduced_mobility,
+        stair_step_penalty_seconds=resolved_stair_penalty,
     )
 
     steps = build_steps(

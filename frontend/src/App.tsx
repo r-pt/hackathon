@@ -63,6 +63,7 @@ export function App() {
 
   const [incidentModalOpen, setIncidentModalOpen] = useState<boolean>(false)
   const [authModalOpen, setAuthModalOpen] = useState<boolean>(false)
+  const [fullStepsModalOpen, setFullStepsModalOpen] = useState<boolean>(false)
   const [token, setToken] = useState<string | null>(() => getAuthToken())
   const queryClient = useQueryClient()
 
@@ -761,6 +762,8 @@ export function App() {
               gpsError={gpsError}
               autoWalking={autoWalking}
               hasActiveRoute={hasActiveRoute}
+              routeStepsCount={routeQuery.data?.steps.length ?? 0}
+              onOpenFullSteps={() => setFullStepsModalOpen(true)}
               reachedGoal={reachedGoal}
               onToggleRealGps={handleToggleRealGps}
               onStepForward={advanceOneStep}
@@ -775,6 +778,10 @@ export function App() {
               isLoading={routeQuery.isFetching}
               reachedGoal={reachedGoal}
               autoVoice={autoVoice}
+              originName={selectedOriginName}
+              destName={selectedDestName}
+              fullStepsOpen={fullStepsModalOpen}
+              onFullStepsOpenChange={setFullStepsModalOpen}
               onToggleAutoVoice={() =>
                 setAutoVoice((prev) => {
                   const next = !prev

@@ -723,6 +723,44 @@ interface SearchResult {
   nodesExplored: number
 }
 
+const NORMAL_SPEED_M_PER_S = 1.35
+const REDUCED_MOBILITY_SPEED_M_PER_S = 1.0
+const ELEVATOR_WAIT_SECONDS = 25.0
+
+function parseEnvBool(val: unknown, fallback: boolean): boolean {
+  if (typeof val === 'boolean') return val
+  if (typeof val === 'string') {
+    const lower = val.trim().toLowerCase()
+    if (lower === 'false' || lower === '0' || lower === 'no') return false
+    if (lower === 'true' || lower === '1' || lower === 'yes') return true
+  }
+  return fallback
+}
+
+function parseEnvNumber(val: unknown, fallback: number): number {
+  if (typeof val === 'number' && Number.isFinite(val)) return val
+  if (typeof val === 'string' && val.trim() !== '') {
+    const parsed = Number(val)
+    if (Number.isFinite(parsed)) return parsed
+  }
+  return fallback
+}
+
+function getStairElevationConfig() {
+  return {
+    enableFloorStairs: parseEnvBool(import.meta.env.VITE_ENABLE_FLOOR_STAIRS, true),
+    enableElevationStairs: parseEnvBool(import.meta.env.VITE_ENABLE_ELEVATION_STAIRS, true),
+    stairStepPenaltySeconds: Math.max(
+      0,
+      parseEnvNumber(import.meta.env.VITE_STAIR_STEP_PENALTY_SECONDS, 0.7),
+    ),
+    elevationSlopePenaltyFactor: Math.max(
+      0,
+      parseEnvNumber(import.meta.env.VITE_ELEVATION_SLOPE_PENALTY_FACTOR, 1.5),
+    ),
+  }
+}
+
 function heuristic3D(a: CampusNode, b: CampusNode, algorithm: SearchAlgorithm): number {
   if (algorithm === 'dijkstra') return 0
   const dx = (a.x - b.x) * 0.15
@@ -815,14 +853,17 @@ function runShortestPath(params: {
       const neighborNode = NODE_BY_ID.get(neighborId)
       if (!neighborNode) continue
 
+      const currentNode = NODE_BY_ID.get(currentId)
+      const dz = currentNode ? Math.abs(currentNode.z - neighborNode.z) : 0
+      const isFloorChange = currentNode ? currentNode.floor !== neighborNode.floor : false
+      const stairCfg = getStairElevationConfig()
+
       if (reducedMobility) {
         if (!edge.is_accessible || edge.edge_type === 'stairs') continue
         if (neighborNode.node_type === 'stairs' && neighborId !== destId) continue
       } else if (edge.edge_type === 'stairs') {
-        const currentNode = NODE_BY_ID.get(currentId)
-        const isFloorTransition = currentNode ? currentNode.floor !== neighborNode.floor : false
-        if (isFloorTransition && import.meta.env.VITE_ENABLE_FLOOR_STAIRS === 'false') continue
-        if (!isFloorTransition && import.meta.env.VITE_ENABLE_ELEVATION_STAIRS === 'false') continue
+        if (isFloorChange && !stairCfg.enableFloorStairs) continue
+        if (!isFloorChange && dz > 0 && !stairCfg.enableElevationStairs) continue
       }
 
       let weight = edge.distance_m * edge.base_weight
@@ -835,6 +876,14 @@ function runShortestPath(params: {
         warningNodeIds.has(neighborId)
       ) {
         weight *= 1.8
+      }
+      if (dz > 0 && edge.edge_type !== 'elevator' && stairCfg.elevationSlopePenaltyFactor > 0) {
+        weight += dz * stairCfg.elevationSlopePenaltyFactor
+      }
+      if (edge.edge_type === 'stairs' && stairCfg.stairStepPenaltySeconds > 0) {
+        const estimatedSteps =
+          dz > 0 ? Math.max(1, dz * 5) : Math.max(1, Math.round(edge.distance_m * 0.5))
+        weight += estimatedSteps * stairCfg.stairStepPenaltySeconds * 0.5
       }
       weight = Number(weight.toFixed(1))
 
@@ -1007,6 +1056,9 @@ function calculateFallbackRoute(req: CalculateRouteRequest): CalculateRouteRespo
   }
 
   let totalDistanceM = 0
+  let elevatorSegments = 0
+  let stairPenaltySecondsTotal = 0
+  const stairCfg = getStairElevationConfig()
   const floorsSet = new Set<number>()
   let usesElevator = false
   let usesRamp = false
@@ -1024,9 +1076,18 @@ function calculateFallbackRoute(req: CalculateRouteRequest): CalculateRouteRespo
     totalDistanceM += edge.distance_m
     floorsSet.add(fromNode.floor)
     floorsSet.add(toNode.floor)
-    if (edge.edge_type === 'elevator') usesElevator = true
+    if (edge.edge_type === 'elevator') {
+      usesElevator = true
+      elevatorSegments++
+    }
     if (edge.edge_type === 'ramp') usesRamp = true
-    if (edge.edge_type === 'stairs') usesStairs = true
+    if (edge.edge_type === 'stairs') {
+      usesStairs = true
+      const dz = Math.abs(toNode.z - fromNode.z)
+      const estimatedSteps =
+        dz > 0 ? Math.max(1, dz * 5) : Math.max(1, Math.round(edge.distance_m * 0.5))
+      stairPenaltySecondsTotal += estimatedSteps * stairCfg.stairStepPenaltySeconds
+    }
 
     steps.push({
       order: i + 1,
@@ -1040,7 +1101,10 @@ function calculateFallbackRoute(req: CalculateRouteRequest): CalculateRouteRespo
     })
   }
 
-  const estimatedTimeMin = Number(Math.max(0.5, totalDistanceM / 52.5).toFixed(1))
+  const speed = reducedMobility ? REDUCED_MOBILITY_SPEED_M_PER_S : NORMAL_SPEED_M_PER_S
+  const travelSeconds =
+    totalDistanceM / speed + elevatorSegments * ELEVATOR_WAIT_SECONDS + stairPenaltySecondsTotal
+  const estimatedTimeMin = Number(Math.max(0.1, travelSeconds / 60).toFixed(1))
 
   return {
     origin_node_id: req.origin_node_id,

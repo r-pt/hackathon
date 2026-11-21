@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ApiError } from '@/api/client'
 import type { CalculateRouteResponse, EdgeType } from '@/api/types'
 
@@ -106,6 +106,271 @@ export function speakSpanish(
   }
 }
 
+const WEATHER_LABELS: Record<string, string> = {
+  clear: 'Despejado',
+  cloudy: 'Nublado',
+  rain: 'Lluvia',
+  storm: 'Tormenta',
+  unknown: 'Sin datos',
+}
+
+export interface FullRouteStepsModalProps {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  route: CalculateRouteResponse
+  originName?: string | null
+  destName?: string | null
+  speechAvailable: boolean
+  isSpeakingAll: boolean
+  speakingStepOrder: number | null
+  onSpeakRoute: () => void
+  onSpeakStep: (stepOrder: number, instruction: string) => void
+}
+
+export function FullRouteStepsModal({
+  open,
+  onOpenChange,
+  route,
+  originName,
+  destName,
+  speechAvailable,
+  isSpeakingAll,
+  speakingStepOrder,
+  onSpeakRoute,
+  onSpeakStep,
+}: FullRouteStepsModalProps) {
+  const dialogRef = useRef<HTMLDialogElement | null>(null)
+  const pressedOutsideRef = useRef(false)
+
+  useEffect(() => {
+    const dialog = dialogRef.current
+    if (!dialog) return
+    if (open && !dialog.open) {
+      dialog.showModal()
+    } else if (!open && dialog.open) {
+      dialog.close()
+    }
+  }, [open])
+
+  const isOutside = (e: React.PointerEvent<HTMLDialogElement>, dialog: HTMLDialogElement) => {
+    const r = dialog.getBoundingClientRect()
+    return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom
+  }
+
+  const { metrics: m } = route
+  const totalSteps = route.steps.length
+  const weatherText = route.weather_applied.rain_avoidance_active
+    ? 'Lluvia / priorizando techados'
+    : (WEATHER_LABELS[route.weather_applied.condition] ?? route.weather_applied.condition)
+
+  return (
+    <dialog
+      ref={dialogRef}
+      aria-labelledby="full-steps-modal-title"
+      className="panel-3d m-auto max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-3xl border border-slate-200 bg-white p-6 text-slate-900 shadow-2xl backdrop:bg-slate-950/50 backdrop:backdrop-blur-xs dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+      onClose={() => {
+        if (open) onOpenChange(false)
+      }}
+      onPointerDown={(e) => {
+        if (dialogRef.current) {
+          pressedOutsideRef.current = isOutside(e, dialogRef.current)
+        }
+      }}
+      onPointerUp={(e) => {
+        if (
+          pressedOutsideRef.current &&
+          dialogRef.current &&
+          isOutside(e, dialogRef.current)
+        ) {
+          onOpenChange(false)
+        }
+        pressedOutsideRef.current = false
+      }}
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 pb-3 dark:border-slate-700">
+        <div className="grid gap-1">
+          <h2
+            id="full-steps-modal-title"
+            className="font-display text-lg font-bold text-slate-900 dark:text-white"
+          >
+            📋 Todos los pasos del recorrido ({totalSteps})
+          </h2>
+          <p className="text-xs font-medium text-slate-600 dark:text-slate-300">
+            <span className="font-semibold text-sky-800 dark:text-sky-300">
+              {originName || route.origin_node_id}
+            </span>{' '}
+            <span aria-hidden="true">→</span>{' '}
+            <span className="font-semibold text-amber-800 dark:text-amber-300">
+              {destName || route.destination_node_id}
+            </span>
+          </p>
+        </div>
+
+        <button
+          type="button"
+          autoFocus
+          onClick={() => onOpenChange(false)}
+          className="btn-3d min-h-10 rounded-xl border border-slate-300 bg-white px-3.5 py-1.5 text-sm font-semibold text-slate-800 transition-colors hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+        >
+          Cerrar
+        </button>
+      </div>
+
+      <div className="mt-4 grid gap-3">
+        <dl className="card-3d grid grid-cols-3 gap-2 rounded-2xl border border-slate-200/80 bg-slate-100/80 p-3 text-center dark:border-slate-700 dark:bg-slate-800/80">
+          <div>
+            <dt className="text-xs text-slate-500 dark:text-slate-400">Distancia total</dt>
+            <dd className="font-display text-base font-bold text-slate-900 dark:text-white">
+              {m.total_distance_m} m
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-slate-500 dark:text-slate-400">Tiempo estimado</dt>
+            <dd className="font-display text-base font-bold text-slate-900 dark:text-white">
+              {m.estimated_time_min} min
+            </dd>
+          </div>
+          <div>
+            <dt className="text-xs text-slate-500 dark:text-slate-400">Pisos</dt>
+            <dd className="font-display text-base font-bold text-slate-900 dark:text-white">
+              {m.floors_traversed.join(' / ')}
+            </dd>
+          </div>
+        </dl>
+
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <ul className="flex flex-wrap gap-1.5" role="list" aria-label="Resumen de accesibilidad y clima">
+            {route.accessibility_verified && (
+              <li className="pill-3d inline-flex items-center gap-1 rounded-full border border-emerald-300 bg-emerald-100 px-2.5 py-0.5 text-xs font-bold text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-200">
+                <span aria-hidden="true">✓</span> Accesible sin escalones
+              </li>
+            )}
+            <li className="pill-3d inline-flex items-center gap-1 rounded-full border border-sky-300 bg-sky-100 px-2.5 py-0.5 text-xs font-semibold text-sky-950 dark:border-sky-800 dark:bg-sky-950/80 dark:text-sky-200">
+              <span aria-hidden="true">{route.weather_applied.rain_avoidance_active ? '☂' : '☀'}</span>{' '}
+              Clima: {weatherText}
+            </li>
+          </ul>
+
+          {speechAvailable && (
+            <button
+              type="button"
+              onClick={onSpeakRoute}
+              aria-pressed={isSpeakingAll}
+              className={
+                isSpeakingAll || speakingStepOrder !== null
+                  ? 'btn-3d-primary min-h-9 rounded-full bg-rose-600 px-3.5 py-1.5 text-xs font-bold text-white transition-all duration-150 hover:bg-rose-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-rose-600'
+                  : 'btn-3d-primary min-h-9 rounded-full bg-[#0EA5E9] px-3.5 py-1.5 text-xs font-bold text-white transition-all duration-150 hover:bg-sky-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9]'
+              }
+            >
+              {isSpeakingAll || speakingStepOrder !== null
+                ? '⏹ Detener audio'
+                : '🔊 Escuchar todo el recorrido'}
+            </button>
+          )}
+        </div>
+
+        {route.avoided_conflicts.length > 0 && (
+          <div
+            role="note"
+            className="rounded-2xl border border-red-200 bg-red-50/90 p-3 text-red-950 shadow-sm dark:border-red-800 dark:bg-red-950/70 dark:text-red-100"
+          >
+            <p className="font-display text-xs font-bold">
+              <span aria-hidden="true">⚠ </span>Conflictos evitados ({route.avoided_conflicts.length})
+            </p>
+            <ul className="mt-1 list-disc space-y-1 pl-4 text-xs">
+              {route.avoided_conflicts.map((c) => (
+                <li key={c.incident_id}>
+                  <strong>{c.target_name}</strong>: {c.reason}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <ol
+          className="grid gap-2.5"
+          role="list"
+          aria-label="Itinerario completo paso a paso"
+        >
+          {route.steps.map((s, idx) => {
+            const meta = EDGE_STEP_META[s.edge_type] ?? {
+              icon: '▪',
+              label: s.edge_type,
+              pillClass: softPillClass,
+            }
+            const isStart = idx === 0
+            const isEnd = idx === totalSteps - 1
+            const isCurrentlySpoken = speakingStepOrder === s.order
+            const markerClass = isStart
+              ? 'grid size-7 shrink-0 place-items-center rounded-full bg-[#0EA5E9] font-display text-xs font-bold text-white'
+              : isEnd
+                ? 'grid size-7 shrink-0 place-items-center rounded-full bg-amber-400 font-display text-xs font-bold text-slate-900'
+                : 'grid size-7 shrink-0 place-items-center rounded-full bg-[#EF4444] font-display text-xs font-bold text-white'
+            return (
+              <li
+                key={s.order}
+                className={
+                  isCurrentlySpoken
+                    ? 'card-3d flex items-start gap-3 rounded-2xl border border-sky-400 bg-sky-50/90 p-3.5 transition-colors dark:border-sky-600 dark:bg-sky-950/70'
+                    : 'card-3d flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-3.5 transition-colors dark:border-slate-700 dark:bg-slate-800/80'
+                }
+              >
+                <span aria-hidden="true" className={markerClass}>
+                  {s.order}
+                </span>
+                <div className="grid flex-1 gap-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-sm font-medium leading-snug text-slate-900 dark:text-slate-100">
+                      {s.instruction}
+                    </p>
+                    {speechAvailable && (
+                      <button
+                        type="button"
+                        onClick={() => onSpeakStep(s.order, s.instruction)}
+                        aria-label={
+                          isCurrentlySpoken
+                            ? `Detener audio del paso ${s.order}`
+                            : `Escuchar paso ${s.order}`
+                        }
+                        aria-pressed={isCurrentlySpoken}
+                        className={
+                          isCurrentlySpoken
+                            ? 'btn-3d-primary shrink-0 rounded-lg bg-[#0EA5E9] px-2.5 py-1 text-xs font-bold text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9]'
+                            : 'btn-3d shrink-0 rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
+                        }
+                      >
+                        <span aria-hidden="true">{isCurrentlySpoken ? '⏹' : '🔊'}</span>
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {isStart && (
+                      <span className="pill-3d rounded-full border border-sky-200 bg-sky-100 px-2 py-0.5 text-xs font-semibold text-sky-900 dark:border-sky-800 dark:bg-sky-950/80 dark:text-sky-200">
+                        Salida
+                      </span>
+                    )}
+                    {isEnd && (
+                      <span className="pill-3d rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-950 dark:border-amber-800 dark:bg-amber-950/80 dark:text-amber-200">
+                        Meta
+                      </span>
+                    )}
+                    <span className={meta.pillClass}>
+                      <span aria-hidden="true">{meta.icon}</span>
+                      <span>{meta.label}</span>
+                    </span>
+                    <span className={softPillClass}>Piso {s.floor}</span>
+                    <span className={softPillClass}>{s.distance_m} m</span>
+                  </div>
+                </div>
+              </li>
+            )
+          })}
+        </ol>
+      </div>
+    </dialog>
+  )
+}
+
 export interface RouteDirectionsProps {
   route?: CalculateRouteResponse
   error?: ApiError | null
@@ -113,6 +378,10 @@ export interface RouteDirectionsProps {
   reachedGoal?: boolean
   autoVoice?: boolean
   onToggleAutoVoice?: () => void
+  originName?: string | null
+  destName?: string | null
+  fullStepsOpen?: boolean
+  onFullStepsOpenChange?: (open: boolean) => void
 }
 
 export function RouteDirections({
@@ -122,10 +391,21 @@ export function RouteDirections({
   reachedGoal = false,
   autoVoice = true,
   onToggleAutoVoice,
+  originName,
+  destName,
+  fullStepsOpen,
+  onFullStepsOpenChange,
 }: RouteDirectionsProps) {
   const [isSpeakingAll, setIsSpeakingAll] = useState(false)
   const [speakingStepOrder, setSpeakingStepOrder] = useState<number | null>(null)
+  const [localModalOpen, setLocalModalOpen] = useState(false)
   const speechAvailable = isSpeechSupported()
+
+  const isModalOpen = fullStepsOpen !== undefined ? fullStepsOpen : localModalOpen
+  const setModalOpen = (next: boolean) => {
+    setLocalModalOpen(next)
+    onFullStepsOpenChange?.(next)
+  }
 
   const handleStopVoice = useCallback(() => {
     stopSpeech()
@@ -312,6 +592,15 @@ export function RouteDirections({
           </div>
         )}
 
+        <button
+          type="button"
+          onClick={() => setModalOpen(true)}
+          className="btn-3d-primary flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white transition-all duration-150 hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] dark:bg-sky-600 dark:text-white dark:hover:bg-sky-500"
+        >
+          <span aria-hidden="true">📋</span>
+          <span>Ver todos los pasos del recorrido ({totalSteps})</span>
+        </button>
+
         <ol
           className="ml-3 grid gap-3 border-l-2 border-slate-200 pl-4 dark:border-slate-700"
           role="list"
@@ -458,6 +747,21 @@ export function RouteDirections({
       <div role="status" aria-live="polite" aria-busy={isLoading}>
         {body}
       </div>
+
+      {route && (
+        <FullRouteStepsModal
+          open={isModalOpen}
+          onOpenChange={setModalOpen}
+          route={route}
+          originName={originName}
+          destName={destName}
+          speechAvailable={speechAvailable}
+          isSpeakingAll={isSpeakingAll}
+          speakingStepOrder={speakingStepOrder}
+          onSpeakRoute={handleSpeakRoute}
+          onSpeakStep={handleSpeakStep}
+        />
+      )}
     </section>
   )
 }

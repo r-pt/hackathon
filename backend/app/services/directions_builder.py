@@ -8,6 +8,7 @@ Builds:
 
 from __future__ import annotations
 
+from app.core.config import get_settings
 from app.schemas.routes import (
     AvoidedConflict,
     GraphEdge,
@@ -28,13 +29,29 @@ def build_metrics(
     traversed_edges: list[GraphEdge],
     nodes_by_id: dict[str, GraphNode],
     reduced_mobility: bool,
+    stair_step_penalty_seconds: float | None = None,
 ) -> RouteMetrics:
     """Compute distance, profile-aware travel time, floors traversed, and accessibility flags."""
     total_distance_m = sum(edge.distance_m for edge in traversed_edges)
     elevator_segments = sum(1 for edge in traversed_edges if edge.edge_type == "elevator")
 
+    penalty = (
+        get_settings().stair_step_penalty_seconds
+        if stair_step_penalty_seconds is None
+        else stair_step_penalty_seconds
+    )
+
     speed = REDUCED_MOBILITY_SPEED_M_PER_S if reduced_mobility else NORMAL_SPEED_M_PER_S
     travel_seconds = (total_distance_m / speed) + (elevator_segments * ELEVATOR_WAIT_SECONDS)
+    for edge in traversed_edges:
+        if edge.edge_type == "stairs":
+            u = nodes_by_id.get(edge.from_node_id)
+            v = nodes_by_id.get(edge.to_node_id)
+            dz = abs(v.z - u.z) if (u is not None and v is not None) else 0
+            estimated_steps = (
+                max(1, dz * 5) if dz > 0 else max(1, round(edge.distance_m * 0.5))
+            )
+            travel_seconds += estimated_steps * max(0.0, penalty)
     estimated_time_min = round(travel_seconds / 60.0, 1)
 
     floors_traversed: list[int] = []

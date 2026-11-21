@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type {
   CalculateRouteResponse,
   CampusBuilding,
@@ -24,6 +24,24 @@ interface CampusMap3DProps {
 
 const ISO_FLOOR_STEP = 420
 const BLDG_EXTRUDE = 34
+const MIN_ZOOM = 0.75
+const MAX_ZOOM = 3.0
+const ZOOM_STEP = 0.25
+
+function clampPan(
+  nextPan: { x: number; y: number },
+  zoom: number,
+  sceneW: number,
+  sceneH: number
+): { x: number; y: number } {
+  if (zoom <= 1) return { x: 0, y: 0 }
+  const maxPanX = (sceneW - sceneW / zoom) / 2 + sceneW * 0.2
+  const maxPanY = (sceneH - sceneH / zoom) / 2 + sceneH * 0.2
+  return {
+    x: Math.max(-maxPanX, Math.min(maxPanX, nextPan.x)),
+    y: Math.max(-maxPanY, Math.min(maxPanY, nextPan.y)),
+  }
+}
 
 const EDGE_STYLE: Record<
   EdgeType,
@@ -383,10 +401,28 @@ export function CampusMap3D({
   const [rotation, setRotation] = useState<number>(0)
   const [showLabels, setShowLabels] = useState<boolean>(true)
   const [showRoofs, setShowRoofs] = useState<boolean>(true)
+  const [zoom, setZoom] = useState<number>(1)
+  const [pan, setPan] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
+  const [isDragging, setIsDragging] = useState<boolean>(false)
   const [internalFloor, setInternalFloor] = useState<'stacked' | number>(floorView)
   const [domDark, setDomDark] = useState<boolean>(() =>
     typeof document !== 'undefined' ? document.documentElement.classList.contains('dark') : false
   )
+
+  const stageRef = useRef<HTMLDivElement | null>(null)
+  const svgRef = useRef<SVGSVGElement | null>(null)
+  const dragRef = useRef<{
+    pointerId: number
+    startX: number
+    startY: number
+    startPanX: number
+    startPanY: number
+    moved: boolean
+  } | null>(null)
+  const suppressClickRef = useRef<boolean>(false)
+  const activePointersRef = useRef<Map<number, { x: number; y: number }>>(new Map())
+  const pinchRef = useRef<{ startDist: number; startZoom: number } | null>(null)
+  const sceneSizeRef = useRef<{ w: number; h: number }>({ w: 2200, h: 1450 })
 
   useEffect(() => {
     setInternalFloor(floorView)
@@ -867,6 +903,149 @@ export function CampusMap3D({
     offsetY,
     northAngleDeg,
   } = scene
+
+  sceneSizeRef.current = { w: scene.width, h: scene.height }
+
+  const viewW = scene.width / zoom
+  const viewH = scene.height / zoom
+  const clampedPan = clampPan(pan, zoom, scene.width, scene.height)
+  const viewX = (scene.width - viewW) / 2 + clampedPan.x
+  const viewY = (scene.height - viewH) / 2 + clampedPan.y
+
+  const applyZoom = useCallback((nextZoom: number) => {
+    const clamped = Math.round(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, nextZoom)) * 100) / 100
+    setZoom(clamped)
+    if (clamped <= 1) {
+      setPan({ x: 0, y: 0 })
+    } else {
+      const { w, h } = sceneSizeRef.current
+      setPan((prev) => clampPan(prev, clamped, w, h))
+    }
+  }, [])
+
+  const resetZoomPan = useCallback(() => {
+    setZoom(1)
+    setPan({ x: 0, y: 0 })
+  }, [])
+
+  useEffect(() => {
+    const el = stageRef.current
+    if (!el) return
+    const handleWheel = (ev: WheelEvent) => {
+      ev.preventDefault()
+      const delta = ev.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP
+      setZoom((prev) => {
+        const next = Math.round(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, prev + delta)) * 100) / 100
+        if (next <= 1) {
+          setPan({ x: 0, y: 0 })
+        } else {
+          const { w, h } = sceneSizeRef.current
+          setPan((p) => clampPan(p, next, w, h))
+        }
+        return next
+      })
+    }
+    el.addEventListener('wheel', handleWheel, { passive: false })
+    return () => el.removeEventListener('wheel', handleWheel)
+  }, [])
+
+  const handleStagePointerDown = (ev: React.PointerEvent<HTMLDivElement>) => {
+    if ((ev.target as Element | null)?.closest('button')) return
+    if (ev.pointerType === 'mouse' && ev.button !== 0) return
+
+    activePointersRef.current.set(ev.pointerId, { x: ev.clientX, y: ev.clientY })
+
+    if (activePointersRef.current.size === 2) {
+      const pts = Array.from(activePointersRef.current.values())
+      const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y)
+      pinchRef.current = { startDist: Math.max(10, dist), startZoom: zoom }
+      dragRef.current = null
+      setIsDragging(false)
+      return
+    }
+
+    if (activePointersRef.current.size === 1) {
+      dragRef.current = {
+        pointerId: ev.pointerId,
+        startX: ev.clientX,
+        startY: ev.clientY,
+        startPanX: clampedPan.x,
+        startPanY: clampedPan.y,
+        moved: false,
+      }
+    }
+  }
+
+  const handleStagePointerMove = (ev: React.PointerEvent<HTMLDivElement>) => {
+    if (activePointersRef.current.has(ev.pointerId)) {
+      activePointersRef.current.set(ev.pointerId, { x: ev.clientX, y: ev.clientY })
+    }
+
+    if (activePointersRef.current.size === 2 && pinchRef.current) {
+      const pts = Array.from(activePointersRef.current.values())
+      const curDist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y)
+      applyZoom(pinchRef.current.startZoom * (curDist / pinchRef.current.startDist))
+      return
+    }
+
+    const drag = dragRef.current
+    if (!drag || drag.pointerId !== ev.pointerId) return
+
+    const dxPx = ev.clientX - drag.startX
+    const dyPx = ev.clientY - drag.startY
+
+    if (!drag.moved) {
+      if (Math.hypot(dxPx, dyPx) < 5) return
+      if (zoom <= 1) return
+      drag.moved = true
+      setIsDragging(true)
+      try {
+        ev.currentTarget.setPointerCapture(ev.pointerId)
+      } catch {
+        // Ignore if pointer capture is unsupported
+      }
+    }
+
+    const svgEl = svgRef.current
+    if (!svgEl) return
+    const rect = svgEl.getBoundingClientRect()
+    const scaleX = viewW / Math.max(1, rect.width)
+    const scaleY = viewH / Math.max(1, rect.height)
+    setPan(
+      clampPan(
+        { x: drag.startPanX - dxPx * scaleX, y: drag.startPanY - dyPx * scaleY },
+        zoom,
+        scene.width,
+        scene.height
+      )
+    )
+  }
+
+  const handleStagePointerUp = (ev: React.PointerEvent<HTMLDivElement>) => {
+    activePointersRef.current.delete(ev.pointerId)
+    if (activePointersRef.current.size < 2) {
+      pinchRef.current = null
+    }
+
+    const drag = dragRef.current
+    if (drag && drag.pointerId === ev.pointerId) {
+      if (drag.moved) {
+        suppressClickRef.current = true
+        window.setTimeout(() => {
+          suppressClickRef.current = false
+        }, 0)
+        try {
+          if (ev.currentTarget.hasPointerCapture(ev.pointerId)) {
+            ev.currentTarget.releasePointerCapture(ev.pointerId)
+          }
+        } catch {
+          // Ignore release failure
+        }
+      }
+      dragRef.current = null
+      setIsDragging(false)
+    }
+  }
 
   const activeIncidents = useMemo(
     () => map.active_incidents.filter((i) => i.status !== 'resolved'),
@@ -2433,7 +2612,10 @@ export function CampusMap3D({
           role="button"
           tabIndex={0}
           aria-label={ariaLabel}
-          onClick={() => onSelectNode(n.id)}
+          onClick={() => {
+            if (suppressClickRef.current) return
+            onSelectNode(n.id)
+          }}
           onKeyDown={(ev) => {
             if (ev.key === 'Enter') {
               ev.preventDefault()
@@ -2655,20 +2837,68 @@ export function CampusMap3D({
 
       {/* Isometric 3D / Cenital Interactive SVG Stage */}
       <div
+        ref={stageRef}
+        onPointerDown={handleStagePointerDown}
+        onPointerMove={handleStagePointerMove}
+        onPointerUp={handleStagePointerUp}
+        onPointerCancel={handleStagePointerUp}
+        style={{ touchAction: zoom > 1 ? 'none' : 'pan-y' }}
         className={`panel-3d relative flex flex-1 items-center justify-center overflow-hidden rounded-2xl p-2 ${
+          zoom > 1 ? (isDragging ? 'cursor-grabbing' : 'cursor-grab') : ''
+        } ${
           isDark
             ? 'bg-gradient-to-b from-[#070B14] via-[#0B1120] to-[#0F172A]'
             : 'bg-gradient-to-b from-slate-100 via-slate-100/90 to-slate-200/75'
         }`}
       >
         <CompassRose angleDeg={northAngleDeg} rotation={rotation} onReset={() => setRotation(0)} isDark={isDark} />
+
+        {/* Floating Zoom & Pan HUD */}
+        <div
+          role="group"
+          aria-label="Controles de zoom del mapa"
+          className="panel-3d absolute right-3 bottom-3 z-20 inline-flex items-center gap-1 rounded-full px-1.5 py-1 backdrop-blur-md"
+        >
+          <button
+            type="button"
+            onClick={() => applyZoom(zoom - ZOOM_STEP)}
+            disabled={zoom <= MIN_ZOOM}
+            aria-label="Alejar mapa"
+            title="Alejar mapa"
+            className="btn-3d inline-flex size-8 items-center justify-center rounded-full bg-white text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+          >
+            ➖
+          </button>
+          <button
+            type="button"
+            onClick={resetZoomPan}
+            aria-label="Restablecer zoom al 100%"
+            title="Restablecer zoom y encuadre (100%)"
+            className="btn-3d inline-flex h-8 min-w-[68px] items-center justify-center gap-1 rounded-full bg-white px-2.5 text-xs font-bold text-slate-900 hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+          >
+            <span aria-hidden="true">🔍</span>
+            <span>{`${Math.round(zoom * 100)}%`}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => applyZoom(zoom + ZOOM_STEP)}
+            disabled={zoom >= MAX_ZOOM}
+            aria-label="Acercar mapa"
+            title="Acercar mapa"
+            className="btn-3d inline-flex size-8 items-center justify-center rounded-full bg-white text-sm font-bold text-slate-800 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#DC2626] dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+          >
+            ➕
+          </button>
+        </div>
+
         <svg
-          viewBox={`0 0 ${scene.width} ${scene.height}`}
+          ref={svgRef}
+          viewBox={`${viewX} ${viewY} ${viewW} ${viewH}`}
           className={`h-auto max-h-[680px] w-full select-none${showLabels ? '' : ' cm3d-hide-labels'}`}
           role="group"
           aria-label={`Mapa ${viewMode === 'iso' ? 'isométrico 3D' : 'cenital'} de ${map.campus_name}, ${
             stacked ? `todos los pisos (${floorsList.length} niveles)` : `piso ${activeFloorView}`
-          }, rotación ${rotation} grados`}
+          }, rotación ${rotation} grados, zoom ${Math.round(zoom * 100)} por ciento`}
         >
           <defs>
             <filter id={shadowFilterId} x="-25%" y="-25%" width="150%" height="150%">

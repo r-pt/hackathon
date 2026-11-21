@@ -12,17 +12,20 @@ export interface RouteControlsPatch {
   floorView: FloorView
 }
 
-export interface RouteControlsProps extends Omit<RouteControlsPatch, 'originId' | 'destId'> {
+export interface RouteControlsProps extends Omit<RouteControlsPatch, 'originId' | 'destId' | 'algorithm'> {
   locations: LocationItem[]
   floors?: number[]
   originId?: string
   destId?: string
+  algorithm?: SearchAlgorithm
   onChange: (patch: Partial<RouteControlsPatch>) => void
   gpsRealActive?: boolean
   gpsStatusMessage?: string | null
   gpsError?: string | null
   autoWalking?: boolean
   hasActiveRoute?: boolean
+  routeStepsCount?: number
+  onOpenFullSteps?: () => void
   reachedGoal?: boolean
   onToggleRealGps?: () => void
   onStepForward?: () => void
@@ -46,11 +49,41 @@ function getLocationOptionIcon(item: LocationItem): string {
   return NODE_TYPE_ICON[item.node_type] ?? '📍'
 }
 
-function getFloorGroupLabel(floor: number, count: number): string {
-  const suffix = count === 1 ? '1 lugar' : `${count} lugares`
-  if (floor === 1) return `Piso 1 — Nivel Terreno (${suffix})`
-  if (floor === 2) return `Piso 2 — Nivel Superior (${suffix})`
-  return `Piso ${floor} (${suffix})`
+function getBuildingSortRank(building: string): number {
+  const b = building.trim()
+  if (b.startsWith('Edificio ')) return 0
+  if (b === 'Red Vial Pavimentada') return 2
+  if (b === 'Exterior') return 3
+  return 1
+}
+
+function getBuildingGroupLabel(building: string): string {
+  const b = building.trim()
+  if (b === 'Exterior') return '🚪 Exterior (Accesos y Salidas)'
+  if (b === 'Red Vial Pavimentada') return '🛣️ Red Vial Pavimentada'
+  return `🏛️ ${b}`
+}
+
+function groupLocationsByBuilding(locations: LocationItem[]): { building: string; label: string; items: LocationItem[] }[] {
+  const map = new Map<string, LocationItem[]>()
+  for (const loc of locations) {
+    const key = (loc.building || 'Exterior').trim()
+    const list = map.get(key) ?? []
+    list.push(loc)
+    map.set(key, list)
+  }
+
+  return Array.from(map.entries())
+    .sort(([a], [b]) => {
+      const rankDiff = getBuildingSortRank(a) - getBuildingSortRank(b)
+      if (rankDiff !== 0) return rankDiff
+      return a.localeCompare(b, 'es')
+    })
+    .map(([building, items]) => ({
+      building,
+      label: getBuildingGroupLabel(building),
+      items: [...items].sort((a, b) => a.floor - b.floor || a.name.localeCompare(b.name, 'es')),
+    }))
 }
 
 export function PersonBadgeIcon() {
@@ -92,7 +125,6 @@ function LocationSelect({
   label,
   value,
   locations,
-  floors,
   onPick,
 }: {
   id: string
@@ -101,11 +133,11 @@ function LocationSelect({
   label: string
   value?: string
   locations: LocationItem[]
-  floors: number[]
   onPick: (id: string) => void
 }) {
   const hasSelection = Boolean(value)
   const isOrigin = kind === 'origin'
+  const buildingGroups = groupLocationsByBuilding(locations)
   return (
     <div className="grid gap-1">
       <label
@@ -138,24 +170,20 @@ function LocationSelect({
         onChange={(e) => onPick(e.target.value)}
       >
         <option value="" disabled>
-          Selecciona un lugar (Piso 1, Piso 2 o Salidas)…
+          Selecciona un lugar por edificio…
         </option>
-        {floors.map((f) => {
-          const floorLocations = locations.filter((l) => l.floor === f)
-          if (floorLocations.length === 0) return null
-          return (
-            <optgroup key={f} label={getFloorGroupLabel(f, floorLocations.length)}>
-              {floorLocations.map((l) => {
-                const icon = getLocationOptionIcon(l)
-                return (
-                  <option key={l.id} value={l.id}>
-                    {icon} {l.name} ({l.building})
-                  </option>
-                )
-              })}
-            </optgroup>
-          )
-        })}
+        {buildingGroups.map((group) => (
+          <optgroup key={group.building} label={group.label}>
+            {group.items.map((l) => {
+              const icon = getLocationOptionIcon(l)
+              return (
+                <option key={l.id} value={l.id}>
+                  {icon} {l.name} (Piso {l.floor})
+                </option>
+              )
+            })}
+          </optgroup>
+        ))}
       </select>
     </div>
   )
@@ -201,7 +229,6 @@ export function RouteControls({
   reducedMobility,
   preferCovered,
   simulateRain,
-  algorithm,
   floorView,
   onChange,
   gpsRealActive = false,
@@ -209,6 +236,8 @@ export function RouteControls({
   gpsError = null,
   autoWalking = false,
   hasActiveRoute = false,
+  routeStepsCount = 0,
+  onOpenFullSteps,
   reachedGoal = false,
   onToggleRealGps,
   onStepForward,
@@ -240,7 +269,6 @@ export function RouteControls({
         label="Ubicación actual"
         value={originId}
         locations={locations}
-        floors={derivedFloors}
         onPick={(id) => onChange({ originId: id })}
       />
       <button
@@ -263,7 +291,6 @@ export function RouteControls({
         label="Destino"
         value={destId}
         locations={locations}
-        floors={derivedFloors}
         onPick={(id) => onChange({ destId: id })}
       />
 
@@ -403,46 +430,39 @@ export function RouteControls({
         />
       </fieldset>
 
-      <div className="grid grid-cols-2 gap-2 border-t border-slate-200/80 pt-2.5 dark:border-slate-700/80">
-        <div className="grid gap-1">
-          <label htmlFor="route-floor-view" className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-            Vista de pisos
-          </label>
-          <select
-            id="route-floor-view"
-            name="floorView"
-            className={fieldBaseClass}
-            value={String(floorView)}
-            onChange={(e) => {
-              const v = e.target.value
-              onChange({ floorView: v === 'stacked' ? 'stacked' : Number(v) })
-            }}
-          >
-            <option value="stacked">Ambos pisos</option>
-            {derivedFloors.map((f) => (
-              <option key={f} value={String(f)}>
-                Piso {f}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        <div className="grid gap-1">
-          <label htmlFor="route-algorithm" className="text-xs font-semibold text-slate-700 dark:text-slate-200">
-            Algoritmo
-          </label>
-          <select
-            id="route-algorithm"
-            name="algorithm"
-            className={fieldBaseClass}
-            value={algorithm}
-            onChange={(e) => onChange({ algorithm: e.target.value as SearchAlgorithm })}
-          >
-            <option value="astar">A* (3D)</option>
-            <option value="dijkstra">Dijkstra</option>
-          </select>
-        </div>
+      <div className="grid gap-1 border-t border-slate-200/80 pt-2.5 dark:border-slate-700/80">
+        <label htmlFor="route-floor-view" className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+          Vista de pisos
+        </label>
+        <select
+          id="route-floor-view"
+          name="floorView"
+          className={fieldBaseClass}
+          value={String(floorView)}
+          onChange={(e) => {
+            const v = e.target.value
+            onChange({ floorView: v === 'stacked' ? 'stacked' : Number(v) })
+          }}
+        >
+          <option value="stacked">Ambos pisos</option>
+          {derivedFloors.map((f) => (
+            <option key={f} value={String(f)}>
+              Piso {f}
+            </option>
+          ))}
+        </select>
       </div>
+
+      {hasActiveRoute && routeStepsCount > 0 && onOpenFullSteps && (
+        <button
+          type="button"
+          onClick={onOpenFullSteps}
+          className="btn-3d-primary flex min-h-10 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 py-2 text-xs font-bold text-white transition-all duration-150 hover:bg-slate-800 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0EA5E9] dark:bg-sky-600 dark:text-white dark:hover:bg-sky-500"
+        >
+          <span aria-hidden="true">📋</span>
+          <span>Ver todos los pasos del recorrido ({routeStepsCount})</span>
+        </button>
+      )}
     </form>
   )
 }
